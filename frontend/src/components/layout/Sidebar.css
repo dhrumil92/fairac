@@ -1,0 +1,201 @@
+/* =============================================================================
+   src/components/layout/Sidebar.css
+   Sidebar Navigation Styles (Exact Google Stitch Design)
+   ============================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap');
+
+/* ─── Sidebar Container ─────────────────────────────────────────────────────── */
+.sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  height: 100vh;
+  left: 0;
+  z-index: 60;
+  width: 256px; /* 64 * 4px = 256px from tailwind w-64 */
+  display: flex;
+  flex-direction: column;
+  background: #1A2540;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+/* ─── Logo ──────────────────────────────────────────────────────────────────── */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  margin-bottom: 32px;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-icon {
+  width: 32px;
+  height: 32px;
+  background-color: #6C63FF;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo-icon .material-symbols-outlined {
+  color: white;
+  font-size: 14px;
+}
+
+.sidebar-logo-text {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+
+.sidebar-logo-sub {
+  font-size: 12px;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.sidebar-admin-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6C63FF, #4F46E5);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Navigation ────────────────────────────────────────────────────────────── */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.sidebar-nav::-webkit-scrollbar { display: none; }
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  color: #94A3B8;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sidebar-nav-item .material-symbols-outlined {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-nav-item.active {
+  background: #6C63FF;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 10px 15px -3px rgba(108, 99, 255, 0.2);
+}
+
+.sidebar-nav-item.active .material-symbols-outlined {
+  color: white;
+}
+
+/* ─── Footer Actions ────────────────────────────────────────────────────────── */
+.sidebar-footer {
+  padding: 0 8px;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-start-btn {
+  width: 100%;
+  background: rgba(108, 99, 255, 0.1);
+  color: #6C63FF;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+}
+
+.sidebar-start-btn:hover {
+  background: rgba(108, 99, 255, 0.2);
+}
+
+.sidebar-start-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.05);
+  margin: 0 16px 16px 16px;
+}
+
+.sidebar-bottom-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 4px 8px;
+  border-radius: 8px;
+  color: #94A3B8;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 16px;
+  text-align: left;
+}
+
+.sidebar-bottom-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-bottom-link .material-symbols-outlined {
+  font-size: 24px;
+}
+
+/* ─── Material Symbols ──────────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+  user-select: none;
+}

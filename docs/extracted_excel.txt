@@ -1,0 +1,142 @@
+﻿================================================================================
+FILE: FairAC_ER_Diagram.xlsx
+================================================================================
+--- Sheet: ER_Diagram_Tables ---
+users |  | admins |  | rooms |  | room_members |  | room_invitations |  | sessions |  | session_participants |  | wallets |  | wallet_transactions |  | consumption_records
+u_id (PK) |  | admin_id (PK) |  | r_id (PK) |  | rm_id (PK) |  | invitation_id (PK) |  | session_id (PK) |  | sp_id (PK) |  | wallet_id (PK) |  | txn_id (PK) |  | record_id (PK)
+name |  | name |  | room_no |  | r_id (FK) |  | room_id (FK) |  | r_id (FK) |  | session_id (FK) |  | u_id (FK) |  | wallet_id (FK) |  | session_id (FK)
+email |  | email |  | room_name |  | u_id (FK) |  | sent_by (FK) |  | created_by (FK) |  | u_id (FK) |  | balance |  | amount |  | u_id (FK)
+mobile |  | password_hash |  | created_at |  | joined_at |  | sent_to (FK) |  | start_time |  | joined_at |  |  |  | type |  | units_consumed
+password_hash |  |  |  |  |  |  |  | status |  | end_time |  | left_at |  |  |  | description |  | cost
+created_at |  |  |  |  |  |  |  | created_at |  | status |  | status |  |  |  | created_at |  | recorded_at
+--- Sheet: Relationships ---
+Parent Table | Relationship | Child Table
+users | 1:1 | wallets
+wallets | 1:M | wallet_transactions
+rooms | 1:M | room_members
+users | 1:M | room_members
+rooms | 1:M | sessions
+users | 1:M | sessions
+sessions | 1:M | session_participants
+users | 1:M | session_participants
+sessions | 1:M | consumption_records
+users | 1:M | consumption_records
+rooms | 1:M | room_invitations
+
+================================================================================
+FILE: FairAC_Improved_Database_Design.xlsx
+================================================================================
+--- Sheet: Improved_DB_Design ---
+Table | Field | Data Type | Constraints / Notes
+users | u_id | BIGSERIAL | PK
+users | name | VARCHAR(100) | NOT NULL
+users | email | VARCHAR(255) | UNIQUE, NOT NULL
+users | mobile | VARCHAR(15) | UNIQUE, NOT NULL
+users | password_hash | VARCHAR(255) | NOT NULL
+users | created_at | TIMESTAMP | DEFAULT NOW()
+admins | admin_id | BIGSERIAL | PK
+admins | name | VARCHAR(100) | NOT NULL
+admins | email | VARCHAR(255) | UNIQUE
+admins | password_hash | VARCHAR(255) | NOT NULL
+rooms | r_id | BIGSERIAL | PK
+rooms | room_no | VARCHAR(20) | NOT NULL
+rooms | room_name | VARCHAR(100) | NULL
+rooms | created_at | TIMESTAMP | DEFAULT NOW()
+room_members | rm_id | BIGSERIAL | PK
+room_members | r_id | BIGINT | FK -> rooms.r_id
+room_members | u_id | BIGINT | FK -> users.u_id
+room_members | joined_at | TIMESTAMP | DEFAULT NOW()
+room_members | (r_id,u_id) |  | UNIQUE
+room_invitations | invitation_id | BIGSERIAL | PK
+room_invitations | room_id | BIGINT | FK -> rooms.r_id
+room_invitations | sent_by | BIGINT | FK -> users.u_id
+room_invitations | sent_to | BIGINT | FK -> users.u_id
+room_invitations | status | VARCHAR(20) | PENDING/ACCEPTED/REJECTED
+room_invitations | created_at | TIMESTAMP | DEFAULT NOW()
+sessions | session_id | BIGSERIAL | PK
+sessions | r_id | BIGINT | FK -> rooms.r_id
+sessions | created_by | BIGINT | FK -> users.u_id
+sessions | start_time | TIMESTAMP | NOT NULL
+sessions | end_time | TIMESTAMP | NULL
+sessions | status | VARCHAR(20) | ACTIVE/COMPLETED/CANCELLED
+sessions | session_type | VARCHAR(20) | OPTIONAL
+sessions | target_value | DECIMAL(10,2) | OPTIONAL
+session_participants | sp_id | BIGSERIAL | PK
+session_participants | session_id | BIGINT | FK -> sessions.session_id
+session_participants | u_id | BIGINT | FK -> users.u_id
+session_participants | joined_at | TIMESTAMP | NOT NULL
+session_participants | left_at | TIMESTAMP | NULL
+session_participants | status | VARCHAR(20) | ACTIVE/LEFT
+wallets | wallet_id | BIGSERIAL | PK
+wallets | u_id | BIGINT | FK -> users.u_id
+wallets | balance | DECIMAL(10,2) | DEFAULT 0.00
+wallet_transactions | txn_id | BIGSERIAL | PK
+wallet_transactions | wallet_id | BIGINT | FK -> wallets.wallet_id
+wallet_transactions | amount | DECIMAL(10,2) | NOT NULL
+wallet_transactions | type | VARCHAR(20) | RECHARGE/CONSUMPTION/ADJUSTMENT/REFUND
+wallet_transactions | description | TEXT | NULL
+wallet_transactions | created_at | TIMESTAMP | DEFAULT NOW()
+consumption_records | record_id | BIGSERIAL | PK
+consumption_records | session_id | BIGINT | FK -> sessions.session_id
+consumption_records | u_id | BIGINT | FK -> users.u_id
+consumption_records | units_consumed | DECIMAL(10,3) | NOT NULL
+consumption_records | cost | DECIMAL(10,2) | NOT NULL
+consumption_records | recorded_at | TIMESTAMP | DEFAULT NOW()
+
+================================================================================
+FILE: database design.xlsx
+================================================================================
+--- Sheet: Sheet1 ---
+ | field | type | constraints
+users table | u_id (PK) | integer | pk
+ | name | varchar(30) | not null
+ | email | varchar(100) | unique
+ | mobile | integer (10) | unique
+ | password_hash | password | not null
+ | created_at | date/time | 
+admin | admin_id (PK) | integer | pk
+ | name | varchar(100) | not null
+ | email | varchar(100) | unique
+ | password_hash | passaword | not null
+rooms | r_id (PK) | integer | pk
+ | room_no | integer | not null
+ | room_name | varchar(50) | 
+ | created_at | date/time | 
+room_members | rm_id (PK) | integer | pk
+ | r_id (FK) | integer | fk
+ | u_id (FK) | integer | fk
+ | joined_at | date/time | 
+room_invitation | invitation_id (PK) | integer | pk
+ | room_id (FK) | integer | fk
+ | sent_by (FK) | integer | fk
+ | sent_to (FK) | integer | fk
+ | status | varchar(20) | not null
+ | created_at | date/time | 
+sessions | session_id (PK) | integer | pk
+ | r_id (FK) | integer | fk
+ | created_by (FK) | integer | fk
+ | start_time | time | not null
+ | end_time | time | not null
+ | status | varchar(20) | not null
+session_participants | sp_id (PK) | intiger | pk
+ | session_id (FK) | intiger | fk
+ | u_id (FK) | intiger | fk
+ | joined_at | date/time | not null
+ | left_at | date/time | not null
+ | status | varchar(20) | not null
+wallets | wallet_id (PK) | integer | pk
+ | u_id (FK) | integer | fk
+ | balance | integer | not null
+wallet_transactions | txn_id (PK) | integer | pk
+ | wallet_id (FK) | integer | fk
+ | amount | integer | not null
+ | type | varchar(40) | not null
+ | description | varchar(400) | 
+ | created_at | date/time | not null
+consumption_records | record_id (PK) | integer | pk
+ | session_id (FK) | integer | fk
+ | u_id (FK) | integer | fk
+ | units_consumed | integer | not null
+ | cost | integer | not null
+ | recorded_at | date/time | 
+

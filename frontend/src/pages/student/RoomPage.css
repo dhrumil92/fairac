@@ -1,0 +1,362 @@
+/* =============================================================================
+   src/pages/student/RoomPage.css
+   ============================================================================= */
+
+.room-state-wrapper {
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Room Info Card */
+.room-info-card {
+  position: relative;
+  overflow: hidden;
+  padding: 32px;
+}
+
+.room-bg-glow {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
+  background: rgba(108, 99, 255, 0.15);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.room-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.room-number-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.hostel-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.room-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 24px;
+}
+
+.stat-group .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-group .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-group .value.primary {
+  color: #6C63FF;
+}
+
+/* Member List */
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.member-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.member-avatar.owner {
+  background: rgba(108, 99, 255, 0.2);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  color: #6C63FF;
+}
+
+.member-avatar.member {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.member-details h4 {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.member-details p {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.role-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.role-badge.owner {
+  background: #6C63FF;
+  color: #fff;
+}
+
+.role-badge.member {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Forms */
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.input-field {
+  flex-grow: 1;
+  background: rgba(15, 23, 41, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-field:focus {
+  border-color: #6C63FF;
+  box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.2);
+}
+
+.btn-primary-block {
+  width: 100%;
+  background: #6C63FF;
+  color: #fff;
+  font-weight: 700;
+  padding: 16px;
+  border-radius: 12px;
+  border: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(108, 99, 255, 0.3);
+  cursor: pointer;
+}
+
+.btn-primary-block:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(108, 99, 255, 0.4);
+}
+
+.btn-danger-outline {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #FF6B6B;
+  border-radius: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  background: transparent;
+  cursor: pointer;
+}
+
+.btn-danger-outline:hover {
+  background: rgba(255, 107, 107, 0.05);
+}
+
+/* Empty State */
+.empty-state-wrapper {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.empty-state-icon {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 24px;
+  opacity: 0.8;
+}
+
+.empty-state-wrapper h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.empty-state-wrapper p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.95rem;
+}
+
+/* Invites */
+.invite-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.invite-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.invite-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(108, 99, 255, 0.2);
+  color: #6C63FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-success {
+  flex: 1;
+  background: #00D4AA;
+  color: #0F1729;
+  font-weight: 700;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  transition: opacity 0.2s;
+  cursor: pointer;
+}
+
+.btn-success:hover {
+  opacity: 0.9;
+}
+
+.btn-danger {
+  flex: 1;
+  background: transparent;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #FF6B6B;
+  font-weight: 700;
+  padding: 12px;
+  border-radius: 12px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 107, 107, 0.05);
+}
+
+/* Create Room Form */
+.create-room-card {
+  padding: 32px;
+}
+
+.create-room-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.create-room-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(108, 99, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6C63FF;
+}
+
+.create-room-icon .material-symbols-outlined {
+  font-size: 1.5rem;
+}
+
+.create-room-header h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.form-group-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.form-group-col label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-left: 4px;
+}
+
+.grid-cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Base Form Wrapper */
+.room-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

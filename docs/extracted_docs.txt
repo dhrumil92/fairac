@@ -1,0 +1,695 @@
+﻿================================================================================
+FILE: FairAC_Requirements.docx
+================================================================================
+# Project Name (Working Title)
+
+**FairAC** (temporary name)
+
+Purpose:
+
+> To fairly divide AC electricity consumption among hostel, PG, and flat roommates based on actual participation instead of equal sharing.
+
+---
+
+# 1. User Roles
+
+## Student
+
+A resident of a room.
+
+Can:
+- Register account
+- Login
+- Join room
+- Create room
+- Participate in sessions
+- View consumption
+- View wallet
+- View history
+
+---
+
+## Admin
+
+Hostel rector / PG owner.
+
+Can:
+- Manage rooms
+- Manage students
+- Recharge wallets
+- Monitor consumption
+- Monitor sessions
+- Generate reports
+
+---
+
+## Future Role: Super Admin
+
+You (system owner).
+
+Can:
+- Manage hostels
+- Manage admins
+- Manage subscriptions
+
+Not needed now.
+
+---
+
+# 2. Authentication Module
+
+## Student Registration
+
+Fields:
+
+- Full Name
+- Mobile Number
+- Email
+- Password
+
+---
+
+## Login
+
+Fields:
+
+- Email/Mobile
+- Password
+
+---
+
+## Forgot Password
+
+Future
+
+---
+
+# 3. Hostel Structure
+
+## Hostel
+
+Example:
+
+ABC Hostel
+
+---
+
+## Room
+
+Example:
+
+Room 301
+Room 302
+Room 303
+
+---
+
+Room Properties:
+
+- Room Number
+- Capacity
+- Current Members
+
+---
+
+# 4. Room Management
+
+## Create Room
+
+Student can:
+
+- Create room
+- Become room owner
+
+---
+
+## Invite Roommate
+
+Student can invite:
+
+- Email
+- Mobile
+
+---
+
+## Accept Invitation
+
+Student accepts.
+
+Added to room.
+
+---
+
+## Reject Invitation
+
+Invitation removed.
+
+---
+
+## Leave Room
+
+Student can leave room.
+
+Restrictions:
+
+- Cannot leave if active session participant.
+
+---
+
+# 5. Session Module
+
+Core module.
+
+---
+
+## Start Session
+
+Any room member can start.
+
+Parameters:
+
+### Unlimited
+
+Session runs until stopped.
+
+---
+
+### Duration Based
+
+Example:
+
+2 Hours
+4 Hours
+8 Hours
+
+---
+
+### Unit Based
+
+Example:
+
+5 kWh
+10 kWh
+
+---
+
+### Budget Based
+
+Example:
+
+Γé╣50
+Γé╣100
+Γé╣200
+
+---
+
+## Session Information
+
+Store:
+
+- Start Time
+- End Time
+- Creator
+- Room
+- Status
+
+---
+
+# 6. Participant Management
+
+## Add Participants
+
+Session creator selects roommates.
+
+Notification sent.
+
+---
+
+## Accept Participation
+
+Student joins session.
+
+---
+
+## Reject Participation
+
+Student not charged.
+
+---
+
+## Join Running Session
+
+Student returns from college.
+
+Can join ongoing session.
+
+Consumption counted only after joining.
+
+---
+
+## Leave Running Session
+
+Student leaves room.
+
+Consumption stops from leave time.
+
+---
+
+# 7. Session States
+
+## Pending
+
+Created but nobody joined.
+
+---
+
+## Active
+
+Running.
+
+---
+
+## Completed
+
+Ended.
+
+---
+
+## Cancelled
+
+Stopped before start.
+
+---
+
+# 8. Consumption Tracking
+
+(MVP = Manual Entry)
+
+Future = Device.
+
+---
+
+Track:
+
+- Current Power
+- Total Units
+- Session Units
+
+---
+
+Fields:
+
+Watts
+kWh
+Cost
+
+---
+
+# 9. Billing Engine
+
+Most important feature.
+
+---
+
+Consumption divided according to:
+
+- Active participants
+- Time participation
+
+---
+
+Example:
+
+A + B = 4 kWh
+
+Each:
+
+2 kWh
+
+---
+
+Example:
+
+A only = 3 kWh
+
+A gets:
+
+3 kWh
+
+---
+
+# 10. Wallet Module
+
+Student Wallet.
+
+---
+
+Fields
+
+- Balance
+- Total Recharge
+- Total Consumption
+
+---
+
+## Wallet Deduction
+
+Consumption deducted automatically.
+
+---
+
+## Recharge
+
+Admin adds balance.
+
+Example:
+
++ Γé╣1000
+
+---
+
+# 11. Wallet Transaction Ledger
+
+Every operation stored.
+
+Examples:
+
++1000 Recharge
+
+-25 Session 101
+
+-50 Session 102
+
++500 Recharge
+
+---
+
+Student can view complete history.
+
+---
+
+# 12. Student Dashboard
+
+Show:
+
+## Current Wallet
+
+Example:
+
+Γé╣780
+
+---
+
+## Current Month Usage
+
+Example:
+
+18.5 kWh
+
+---
+
+## Current Month Cost
+
+Example:
+
+Γé╣350
+
+---
+
+## Active Sessions
+
+Show ongoing sessions.
+
+---
+
+## Room Information
+
+Show roommates.
+
+---
+
+# 13. Notifications
+
+## Room Invitation
+
+Accept / Reject.
+
+---
+
+## Session Join Request
+
+Accept / Reject.
+
+---
+
+## Added To Running Session
+
+Notification.
+
+---
+
+## Wallet Low Balance
+
+Alert.
+
+---
+
+## Session Ended
+
+Alert.
+
+---
+
+# 14. Admin Dashboard
+
+Admin login.
+
+---
+
+## Overview
+
+Show:
+
+- Total Students
+- Total Rooms
+- Active Sessions
+- Total Consumption
+
+---
+
+## Revenue Overview
+
+Show:
+
+- Total Wallet Recharge
+- Total Consumption Charges
+
+---
+
+# 15. Student Management
+
+Admin can:
+
+- View Students
+- Search Students
+- Suspend Students
+
+Future.
+
+---
+
+# 16. Room Management
+
+Admin can:
+
+- Create Rooms
+- Delete Rooms
+- Assign Students
+
+---
+
+# 17. Wallet Management
+
+Admin can:
+
+- Add Balance
+- Deduct Balance
+- View Transactions
+
+---
+
+# 18. Session Monitoring
+
+Admin can:
+
+- View Running Sessions
+- View Participants
+- View Live Consumption
+
+---
+
+# 19. Reports
+
+Generate:
+
+## Student Report
+
+Consumption history.
+
+---
+
+## Room Report
+
+Room-wise usage.
+
+---
+
+## Monthly Report
+
+Hostel consumption.
+
+---
+
+# 20. Future IoT Module
+
+Device Table.
+
+---
+
+Device Fields
+
+- Device ID
+- Room ID
+- Status
+- Firmware Version
+
+---
+
+Track:
+
+- Current Power
+- Voltage
+- Current
+- kWh
+
+---
+
+# 21. Future Relay Control
+
+Device can:
+
+- Turn AC ON
+- Turn AC OFF
+
+---
+
+Auto OFF Conditions:
+
+- Duration Complete
+- Unit Limit Reached
+- Budget Limit Reached
+
+---
+
+# 22. Future Payment Gateway
+
+Student can:
+
+- Recharge Wallet
+
+Using:
+
+- UPI
+- Card
+- Net Banking
+
+---
+
+# 23. Future Flat Sharing Mode
+
+Not hostel-specific.
+
+Can be used for:
+
+- Flats
+- Apartments
+- Shared houses
+
+---
+
+# MVP (Build This First)
+
+If I were you, Version 1 would contain only:
+
+Γ£à Authentication
+Γ£à Rooms
+Γ£à Invitations
+Γ£à Sessions
+Γ£à Participants
+Γ£à Consumption Allocation Logic
+Γ£à Wallet
+Γ£à Wallet Transactions
+Γ£à Admin Dashboard
+Γ£à Reports
+
+Everything else can come later.
+
+This is already a substantial full-stack project and enough to demonstrate strong software engineering skills while keeping the architecture ready for your future IoT hardware integration.
+
+
+================================================================================
+FILE: FairAC User Flow Document.docx
+================================================================================
+FairAC User Flow Document
+Student Flow
+Signup Γåô Signin Γåô Dashboard Γåô Create Room / Join Room Γåô Room Dashboard Γö£ΓöÇΓöÇ View Roommates Γö£ΓöÇΓöÇ View Active Session Γö£ΓöÇΓöÇ View Consumption History Γö£ΓöÇΓöÇ View Wallet ΓööΓöÇΓöÇ Start Session Γåô Select Participants Γåô Participants Accept / Reject Γåô Session Active Γåô Join Session / Leave Session Γåô Stop Session Γåô Consumption Calculated Γåô Wallet Updated
+Room Creation Flow
+Create Room Γåô Invite Roommates Γåô Roommates Accept / Reject Γåô Room Created Successfully
+Room Joining Flow
+Receive Invitation Γåô Accept / Reject Γåô Added To Room
+Session Flow
+Start Session Γåô Select Participants Γåô Send Join Requests Γåô Participants Accept / Reject Γåô Session Active Γåô Participants Join / Leave Γåô Session Ended Γåô Consumption Allocated Γåô Wallet Deduction
+Wallet Flow
+View Wallet Γåô View Transaction History Γåô Admin Recharge Γåô Wallet Updated
+Admin Flow
+Admin Signin Γåô Dashboard Γö£ΓöÇΓöÇ View Students Γö£ΓöÇΓöÇ View Rooms Γö£ΓöÇΓöÇ View Active Sessions Γö£ΓöÇΓöÇ Recharge Wallet Γö£ΓöÇΓöÇ View Reports ΓööΓöÇΓöÇ View Consumption Statistics
+Report Flow
+Admin Dashboard Γåô Select Report Type Γö£ΓöÇΓöÇ Student Report Γö£ΓöÇΓöÇ Room Report ΓööΓöÇΓöÇ Monthly Report Γåô Generate Report Γåô View / Export Report
+
+================================================================================
+FILE: FairAC_API_Design.docx
+================================================================================
+FairAC API Design Document (MVP)
+Authentication APIs
+POST /auth/register
+POST /auth/login
+POST /auth/forgot-password (Future)
+Room APIs
+POST /rooms
+GET /rooms/:id
+GET /rooms
+DELETE /rooms/:id
+Room Invitation APIs
+POST /rooms/invite
+POST /rooms/invite/accept
+POST /rooms/invite/reject
+GET /rooms/invitations
+Session APIs
+POST /sessions/start
+POST /sessions/end
+GET /sessions/:id
+GET /sessions/active
+Session Participant APIs
+POST /sessions/participants
+POST /sessions/participants/leave
+GET /sessions/:id/participants
+Wallet APIs
+GET /wallet
+GET /wallet/transactions
+Admin APIs
+POST /admin/recharge
+GET /admin/students
+GET /admin/rooms
+GET /admin/reports
+GET /admin/active-sessions
+

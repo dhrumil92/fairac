@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FairAC Admin | Room Management</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            DEFAULT: '#6C63FF',
+                            container: 'rgba(108, 99, 255, 0.1)',
+                            on: '#FFFFFF'
+                        },
+                        surface: {
+                            dark: '#0F1729',
+                            card: '#1A2540',
+                            border: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        status: {
+                            success: '#00D4AA',
+                            danger: '#FF6B6B',
+                            warning: '#FFB84D'
+                        }
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans", "sans-serif"],
+                        "display": ["Plus Jakarta Sans", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(26, 37, 64, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(108, 99, 255, 0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#0F1729] text-slate-200 font-body antialiased custom-scrollbar">
+<!-- SideNavBar (Shared Component Anchor) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#1A2540] border-r border-white/10 shadow-xl flex flex-col p-4 z-50">
+<div class="mb-8 px-4">
+<h1 class="text-xl font-bold text-[#6C63FF] font-headline">FairAC Admin</h1>
+<p class="text-xs text-slate-400 font-medium">Hostel Management</p>
+</div>
+<nav class="flex-1 space-y-2">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<!-- Students -->
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-medium text-sm">Students</span>
+</a>
+<!-- Rooms (ACTIVE) -->
+<a class="flex items-center gap-3 px-4 py-3 text-[#6C63FF] bg-[#6C63FF]/10 rounded-lg font-semibold transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">meeting_room</span>
+<span class="font-medium text-sm">Rooms</span>
+</a>
+<!-- Active Sessions -->
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined">electric_bolt</span>
+<span class="font-medium text-sm">Active Sessions</span>
+</a>
+<!-- Wallet Management -->
+<a class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-medium text-sm">Wallet Management</span>
+</a>
+</nav>
+<div class="mt-auto pt-4 border-t border-white/10 flex items-center gap-3 px-2">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-primary/20 flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a hostel administrator in a corporate setting, clean lighting, sharp focus, with a modern technology-driven office background and a purple-tinted professional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2jLld62qiICfO22SixH1DK9adDrF9nUUocq7VJqRCdVLM8uz-aiIXNc52lmfuXaxqVJErtdCc_G-vgisgEHX45CuEtCWayEBHGclOlKwyOrWgmlqq3u7xdFmz4EzDUTEZCn4BWK4UQeoPRezfBfK8gFHoG9oCt376X4TrlvpV2VqKYAftZioCkkOv7EyhVOr0LZk4teRbfWaipma1KBy8OFT4BWpDD0MFgJxzRRmjB4KBdDM-Kuxp5-eRAY8j4nYAoe6blUUyCOA"/>
+</div>
+<div class="overflow-hidden">
+<p class="text-sm font-semibold truncate">FairAC Admin Profile</p>
+<p class="text-xs text-slate-500 truncate">admin@fairac.com</p>
+</div>
+</div>
+</aside>
+<!-- TopNavBar (Shared Component Anchor) -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 bg-[#0F1729]/80 backdrop-blur-md flex justify-between items-center px-8 z-40 border-b border-white/10">
+<div class="flex items-center gap-4">
+<h2 class="font-headline text-2xl font-bold text-white">Room Management</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative flex items-center bg-white/5 rounded-full px-4 py-1.5 border border-white/10 focus-within:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-slate-400 text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm placeholder:text-slate-500 w-48 lg:w-64" placeholder="Search room number..." type="text"/>
+</div>
+<button class="bg-[#6C63FF] hover:bg-[#5b54d6] text-white px-5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                Add New Room
+            </button>
+<div class="flex gap-4 border-l border-white/10 pl-6">
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-white transition-colors">notifications</span>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-white transition-colors">settings</span>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 p-8 min-h-screen">
+<!-- Stats Overview Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<!-- Total Rooms -->
+<div class="glass-card rounded-xl p-6 relative overflow-hidden group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-slate-400 text-sm font-medium">Total Rooms</p>
+<h3 class="text-3xl font-bold font-headline mt-1">42</h3>
+</div>
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">meeting_room</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-status-success flex items-center font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> 4%
+                    </span>
+<span class="text-slate-500">vs last month</span>
+</div>
+</div>
+<!-- Occupancy -->
+<div class="glass-card rounded-xl p-6 relative overflow-hidden group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-slate-400 text-sm font-medium">Occupancy Rate</p>
+<h3 class="text-3xl font-bold font-headline mt-1">88%</h3>
+</div>
+<div class="w-10 h-10 rounded-lg bg-status-success/10 flex items-center justify-center text-status-success">
+<span class="material-symbols-outlined">group</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-status-success flex items-center font-bold">
+<span class="material-symbols-outlined text-[14px]">check</span> Stable
+                    </span>
+<span class="text-slate-500">110 / 125 Capacity</span>
+</div>
+</div>
+<!-- Active ACs -->
+<div class="glass-card rounded-xl p-6 relative overflow-hidden group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-slate-400 text-sm font-medium">Active AC Sessions</p>
+<h3 class="text-3xl font-bold font-headline mt-1">14</h3>
+</div>
+<div class="w-10 h-10 rounded-lg bg-status-warning/10 flex items-center justify-center text-status-warning">
+<span class="material-symbols-outlined">electric_bolt</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-slate-300">Peak load in progress</span>
+</div>
+</div>
+<!-- Revenue (Credit Today) -->
+<div class="glass-card rounded-xl p-6 relative overflow-hidden group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-slate-400 text-sm font-medium">Revenue Today</p>
+<h3 class="text-3xl font-bold font-headline mt-1">₹4,250</h3>
+</div>
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-xs">
+<span class="text-status-success flex items-center font-bold">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> 12%
+                    </span>
+<span class="text-slate-500">from yesterday</span>
+</div>
+</div>
+</div>
+<!-- Room Data Table Section -->
+<div class="glass-card rounded-xl overflow-hidden">
+<div class="px-6 py-5 border-b border-white/10 flex justify-between items-center">
+<h4 class="font-semibold text-lg">Room Inventory</h4>
+<div class="flex gap-2">
+<button class="px-3 py-1.5 text-xs font-medium border border-white/10 rounded-lg hover:bg-white/5 transition-colors">
+                        Filter By Wing
+                    </button>
+<button class="px-3 py-1.5 text-xs font-medium border border-white/10 rounded-lg hover:bg-white/5 transition-colors">
+                        Export CSV
+                    </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-white/5 text-slate-400 uppercase text-[11px] tracking-wider font-bold">
+<th class="px-6 py-4">Room Number</th>
+<th class="px-6 py-4">Capacity</th>
+<th class="px-6 py-4">Current Occupants</th>
+<th class="px-6 py-4">AC Session Status</th>
+<th class="px-6 py-4">Rate per Unit</th>
+<th class="px-6 py-4 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/10">
+<!-- Row 1 -->
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">102</div>
+<span class="font-semibold text-white">Room 102</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-300">3 Persons</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium">3/3</span>
+<div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="bg-status-success h-full w-full"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/10 text-status-success border border-status-success/20">
+<span class="w-1.5 h-1.5 rounded-full bg-status-success mr-1.5 animate-pulse"></span>
+                                    Live
+                                </span>
+</td>
+<td class="px-6 py-4 font-medium text-white">₹10.50/unit</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-all text-sm font-medium">Manage Room</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">204</div>
+<span class="font-semibold text-white">Room 204</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-300">2 Persons</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium">1/2</span>
+<div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="bg-status-warning h-full w-1/2"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                                    Idle
+                                </span>
+</td>
+<td class="px-6 py-4 font-medium text-white">₹10.50/unit</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-all text-sm font-medium">Manage Room</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">105</div>
+<span class="font-semibold text-white">Room 105</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-300">3 Persons</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium">2/3</span>
+<div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[66%]"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/10 text-status-success border border-status-success/20">
+<span class="w-1.5 h-1.5 rounded-full bg-status-success mr-1.5 animate-pulse"></span>
+                                    Live
+                                </span>
+</td>
+<td class="px-6 py-4 font-medium text-white">₹10.50/unit</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-all text-sm font-medium">Manage Room</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">301</div>
+<span class="font-semibold text-white">Room 301</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-300">1 Person</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium">0/1</span>
+<div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="bg-slate-500 h-full w-0"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                                    Idle
+                                </span>
+</td>
+<td class="px-6 py-4 font-medium text-white">₹12.00/unit</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-all text-sm font-medium">Manage Room</button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">212</div>
+<span class="font-semibold text-white">Room 212</span>
+</div>
+</td>
+<td class="px-6 py-4 text-slate-300">4 Persons</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="font-medium">4/4</span>
+<div class="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="bg-status-danger h-full w-full"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-success/10 text-status-success border border-status-success/20">
+<span class="w-1.5 h-1.5 rounded-full bg-status-success mr-1.5 animate-pulse"></span>
+                                    Live
+                                </span>
+</td>
+<td class="px-6 py-4 font-medium text-white">₹10.50/unit</td>
+<td class="px-6 py-4 text-right">
+<button class="px-4 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-all text-sm font-medium">Manage Room</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-white/5 flex items-center justify-between">
+<span class="text-xs text-slate-500">Showing 1 to 5 of 42 rooms</span>
+<div class="flex gap-2">
+<button class="w-8 h-8 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center bg-primary text-white font-bold text-xs">1</button>
+<button class="w-8 h-8 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors text-slate-400 text-xs">2</button>
+<button class="w-8 h-8 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors text-slate-400 text-xs">3</button>
+<button class="w-8 h-8 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- System Alerts / Activity -->
+<div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2 glass-card rounded-xl p-6">
+<h4 class="font-semibold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                    Recent Activity
+                </h4>
+<div class="space-y-4">
+<div class="flex items-start gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10">
+<div class="w-8 h-8 rounded-full bg-status-success/10 flex items-center justify-center text-status-success flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">power_settings_new</span>
+</div>
+<div>
+<p class="text-sm font-medium">AC Session Started in <span class="text-white">Room 102</span></p>
+<p class="text-xs text-slate-500 mt-0.5">2 minutes ago • Occupant: Aryan Sharma</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">wallet</span>
+</div>
+<div>
+<p class="text-sm font-medium">Wallet Recharge in <span class="text-white">Room 204</span></p>
+<p class="text-xs text-slate-500 mt-0.5">15 minutes ago • Amount: ₹500.00</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10">
+<div class="w-8 h-8 rounded-full bg-status-danger/10 flex items-center justify-center text-status-danger flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+</div>
+<div>
+<p class="text-sm font-medium text-status-danger">Low Balance Alert</p>
+<p class="text-xs text-slate-500 mt-0.5">1 hour ago • Room 301 (Balance: ₹12.40)</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Maintenance Status -->
+<div class="glass-card rounded-xl p-6">
+<h4 class="font-semibold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">build</span>
+                    Maintenance Queue
+                </h4>
+<div class="space-y-4">
+<div class="p-4 rounded-xl bg-white/5 border border-white/10">
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-wide">Urgent</span>
+<span class="text-[10px] text-slate-500">2h ago</span>
+</div>
+<p class="text-sm font-medium mb-1">AC Not Cooling - Room 105</p>
+<p class="text-xs text-slate-500 mb-3">Filter cleaning requested by occupants.</p>
+<button class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold transition-colors">Assign Technician</button>
+</div>
+<div class="p-4 rounded-xl bg-white/5 border border-white/10">
+<div class="flex justify-between items-center mb-2">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-wide">Scheduled</span>
+<span class="text-[10px] text-slate-500">Tomorrow</span>
+</div>
+<p class="text-sm font-medium mb-1">Meter Calibration - Wing B</p>
+<p class="text-xs text-slate-500 mb-3">Quarterly sensor check for Rooms 201-210.</p>
+<button class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold transition-colors">View Details</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interactions Script -->
+<script>
+        // Simple hover effect and simulation of data updates
+        document.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('click', () => {
+                // In a real app, this would navigate or open a side panel
+                console.log('Room selected');
+            });
+        });
+
+        // Add pulsing effect to Live badges (already in CSS animate-pulse)
+    </script>
+</body></html>
