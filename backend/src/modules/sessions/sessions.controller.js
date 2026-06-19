@@ -55,11 +55,9 @@ const getActiveSession = async (req, res, next) => {
 // GET /api/v1/sessions/my
 const getMySessionHistory = async (req, res, next) => {
   try {
-    const sessions = await sessionsService.getMySessionHistory(req.user.u_id);
-    res.status(200).json({
-      success: true,
-      data: { sessions, count: sessions.length },
-    });
+    const { page = 1, limit = 7 } = req.query;
+    const data = await sessionsService.getMySessionHistory(req.user.u_id, { page, limit });
+    res.status(200).json({ success: true, data });
   } catch (err) { next(err); }
 };
 
@@ -164,6 +162,19 @@ const approveLeaveSession = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// POST /api/v1/sessions/participants/leave/reject
+const rejectLeaveSession = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const result = await sessionsService.rejectLeave({
+      approver_id:  req.user.u_id,
+      session_id:   req.body.session_id,
+      leaving_u_id: req.body.leaving_u_id,
+    });
+    res.status(200).json({ success: true, message: result.message });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   startSession,
   getActiveSession,
@@ -176,4 +187,5 @@ module.exports = {
   rejectSessionInvite,
   leaveSession,
   approveLeaveSession,
+  rejectLeaveSession,
 };

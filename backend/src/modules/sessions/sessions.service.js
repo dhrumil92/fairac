@@ -98,6 +98,35 @@ const startSession = async ({
     );
   }
 
+  // Loophole Fix: User must have a minimum wallet balance of 50 to start a session
+  const walletCheck = await db.query(`SELECT balance FROM wallets WHERE u_id = $1`, [u_id]);
+  if (walletCheck.rows.length === 0) {
+    throw createError(400, 'No wallet found. Please contact support.');
+  }
+  
+  const balance = parseFloat(walletCheck.rows[0].balance);
+  if (balance < 50) {
+    throw createError(400, 'Minimum wallet balance of ₹50 is required to start a session. Please recharge.');
+  }
+
+  // Prevent booking beyond what the current balance can afford
+  const AC_POWER_KW = 1.5;
+  if (session_type === 'budget') {
+    if (target_value > balance) {
+      throw createError(400, `Cannot book a budget of ₹${target_value} with a wallet balance of ₹${balance}.`);
+    }
+  } else if (session_type === 'unit') {
+    const maxUnits = balance / rate_per_unit;
+    if (target_value > maxUnits) {
+      throw createError(400, `Cannot book ${target_value} units. Your balance (₹${balance}) only covers ${maxUnits.toFixed(2)} units.`);
+    }
+  } else if (session_type === 'duration') {
+    const maxHours = balance / (AC_POWER_KW * rate_per_unit);
+    if (target_value > maxHours) {
+      throw createError(400, `Cannot book ${target_value} hours. Your balance (₹${balance}) only covers ${maxHours.toFixed(2)} hours.`);
+    }
+  }
+
   // Validate participant_ids are all room members (excluding creator)
   const validIds = participant_ids.filter((id) => id !== u_id);
   if (validIds.length > 0) {
@@ -213,7 +242,17 @@ const getSessionById = async (session_id) => {
 // =============================================================================
 // Returns all sessions the caller has participated in (as creator or participant).
 //
-const getMySessionHistory = async (u_id) => {
+const getMySessionHistory = async (u_id, { page = 1, limit = 7 } = {}) => {
+  const offset = (page - 1) * limit;
+
+  const countResult = await db.query(
+    `SELECT COUNT(*) FROM sessions s
+     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1`,
+    [u_id]
+  );
+  const total = parseInt(countResult.rows[0].count, 10);
+  const total_pages = Math.ceil(total / limit);
+
   const result = await db.query(
     `SELECT
             s.session_id, s.status, s.session_type, s.total_units,
@@ -234,10 +273,72 @@ const getMySessionHistory = async (u_id) => {
      JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
      LEFT JOIN consumption_records cr ON cr.session_id = s.session_id AND cr.u_id = $1
      ORDER BY s.start_time DESC
-     LIMIT 50`,
-    [u_id]
+     LIMIT $2 OFFSET $3`,
+    [u_id, limit, offset]
   );
-  return result.rows;
+  
+  return {
+    sessions: result.rows,
+    pagination: {
+      total,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      total_pages,
+      has_next: page < total_pages,
+      has_prev: page > 1,
+    }
+  };
+};
+
+// =============================================================================
+// Helper: validateParticipantBalance
+// =============================================================================
+const validateParticipantBalance = async (u_id, session_id, actionContext = 'join') => {
+  const walletCheck = await db.query(`SELECT balance FROM wallets WHERE u_id = $1`, [u_id]);
+  if (walletCheck.rows.length === 0) throw createError(400, 'No wallet found.');
+  const balance = parseFloat(walletCheck.rows[0].balance);
+  
+  const sessionResult = await db.query(
+    `SELECT s.session_type, s.target_value, r.rate_per_unit
+     FROM sessions s
+     JOIN rooms r ON r.r_id = s.r_id
+     WHERE s.session_id = $1`,
+    [session_id]
+  );
+  if (sessionResult.rows.length === 0) throw createError(404, 'Session not found.');
+  
+  const { session_type, target_value, rate_per_unit } = sessionResult.rows[0];
+  const AC_POWER_KW = 1.5;
+
+  if (session_type === 'unlimited') {
+    if (balance < 50) {
+      throw createError(400, actionContext === 'invite' 
+        ? `Cannot invite this user. Their wallet balance is below ₹50.`
+        : `Minimum wallet balance of ₹50 is required. Please recharge.`
+      );
+    }
+  } else if (session_type === 'budget' && target_value > balance) {
+    throw createError(400, actionContext === 'invite'
+      ? `Cannot invite this user. Their balance (₹${balance}) is lower than the session budget (₹${target_value}).`
+      : `Cannot participate. Your balance (₹${balance}) is lower than the session budget (₹${target_value}).`
+    );
+  } else if (session_type === 'unit') {
+    const maxUnits = balance / rate_per_unit;
+    if (target_value > maxUnits) {
+      throw createError(400, actionContext === 'invite'
+        ? `Cannot invite this user. Their balance (₹${balance}) cannot cover ${target_value} units.`
+        : `Cannot participate. Your balance (₹${balance}) cannot cover ${target_value} units.`
+      );
+    }
+  } else if (session_type === 'duration') {
+    const maxHours = balance / (AC_POWER_KW * rate_per_unit);
+    if (target_value > maxHours) {
+      throw createError(400, actionContext === 'invite'
+        ? `Cannot invite this user. Their balance (₹${balance}) cannot cover ${target_value} hours.`
+        : `Cannot participate. Your balance (₹${balance}) cannot cover ${target_value} hours.`
+      );
+    }
+  }
 };
 
 // =============================================================================
@@ -271,6 +372,9 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
 
   // Invitee must be a room member
   await assertRoomMember(invitee_id, session.r_id);
+
+  // Invitee must have sufficient balance for this session
+  await validateParticipantBalance(invitee_id, session_id, 'invite');
 
   // Not already a participant
   const existing = await db.query(
@@ -325,6 +429,9 @@ const acceptSessionInvite = async ({ u_id, session_id }) => {
   if (sessResult.rows[0].status !== 'active') {
     throw createError(409, 'Session is no longer active.');
   }
+
+  // Validate the user has enough balance to accept
+  await validateParticipantBalance(u_id, session_id, 'accept');
 
   await db.query(
     `UPDATE session_participants
@@ -381,6 +488,9 @@ const joinSession = async ({ u_id, session_id }) => {
 
   // Must be a room member
   await assertRoomMember(u_id, session.r_id);
+
+  // Validate the user has enough balance to join
+  await validateParticipantBalance(u_id, session_id, 'join');
 
   // Check if already a participant
   const existing = await db.query(
@@ -487,6 +597,40 @@ const approveLeave = async ({ approver_id, session_id, leaving_u_id }) => {
 };
 
 // =============================================================================
+// rejectLeave
+// =============================================================================
+// Rejects a roommate's request to leave the session.
+//
+const rejectLeave = async ({ approver_id, session_id, leaving_u_id }) => {
+  // Verifying approver is in the session and active
+  const approverResult = await db.query(
+    `SELECT status FROM session_participants WHERE session_id = $1 AND u_id = $2 AND status = 'accepted' AND left_at IS NULL`,
+    [session_id, approver_id]
+  );
+  if (approverResult.rows.length === 0) {
+    throw createError(403, 'You must be an active participant to reject a leave request.');
+  }
+
+  // Verifying leaver requested to leave
+  const leaverResult = await db.query(
+    `SELECT leave_status FROM session_participants WHERE session_id = $1 AND u_id = $2`,
+    [session_id, leaving_u_id]
+  );
+  if (leaverResult.rows.length === 0 || leaverResult.rows[0].leave_status !== 'pending') {
+    throw createError(404, 'No pending leave request found for this user.');
+  }
+
+  // Clear the leaver's leave_status
+  await db.query(
+    `UPDATE session_participants SET leave_status = 'none'
+     WHERE session_id = $1 AND u_id = $2`,
+    [session_id, leaving_u_id]
+  );
+
+  return { message: 'Leave request rejected successfully.' };
+};
+
+// =============================================================================
 // endSession — Contains the BILLING ENGINE
 // =============================================================================
 // Ends a session and calculates each participant's fair share of the cost.
@@ -560,12 +704,35 @@ const endSession = async ({ u_id, session_id, total_units }) => {
   const rate = parseFloat(session.rate_per_unit);
   const totalCost = parseFloat(total_units) * rate;
 
+  // ── Grace Period Configurations ─────────────────────────────────────────
+  const JOIN_GRACE_MINUTES = 5;
+  const LEAVE_GRACE_MINUTES = 5;
+  const JOIN_GRACE_MS = JOIN_GRACE_MINUTES * 60 * 1000;
+  const LEAVE_GRACE_MS = LEAVE_GRACE_MINUTES * 60 * 1000;
+
   // ── Billing Calculation ─────────────────────────────────────────────────
   // Step 1: Calculate each person's time in seconds
+  const sessionStartTime = new Date(session.start_time);
+  
   const billingData = participants.map((p) => {
-    const joinTime  = new Date(p.joined_at);
-    const leaveTime = p.left_at ? new Date(p.left_at) : endTime;
-    const seconds   = Math.max(0, (leaveTime - joinTime) / 1000);
+    const joinTime = new Date(p.joined_at);
+    let effectiveJoinTime = joinTime;
+
+    // Join Grace Period Logic
+    // If accepted within 5 minutes of start, treat as joining at start
+    if (joinTime.getTime() - sessionStartTime.getTime() <= JOIN_GRACE_MS) {
+      effectiveJoinTime = sessionStartTime;
+    }
+
+    let effectiveLeaveTime = p.left_at ? new Date(p.left_at) : endTime;
+
+    // Leave Grace Period Logic
+    // If left within 5 minutes of end, treat as leaving at end
+    if (p.left_at && (endTime.getTime() - effectiveLeaveTime.getTime() <= LEAVE_GRACE_MS)) {
+      effectiveLeaveTime = endTime;
+    }
+
+    const seconds = Math.max(0, (effectiveLeaveTime.getTime() - effectiveJoinTime.getTime()) / 1000);
     return { u_id: p.u_id, seconds };
   });
 
@@ -631,27 +798,29 @@ const endSession = async ({ u_id, session_id, total_units }) => {
 
       if (bill.cost > 0) {
         // 2b. Deduct from wallet
-        // Note: We check balance >= cost before deducting.
-        // If wallet is insufficient, we still deduct (allow negative in this implementation)
-        // For MVP, we trust admin has recharged enough. Production: add overdraft protection.
         const walletResult = await client.query(
-          `UPDATE wallets
-           SET balance = balance - $1,
-               total_spent = total_spent + $1,
-               updated_at = NOW()
-           WHERE u_id = $2
-           RETURNING wallet_id, balance`,
-          [bill.cost, bill.u_id]
+          `SELECT wallet_id, balance FROM wallets WHERE u_id = $1 FOR UPDATE`,
+          [bill.u_id]
         );
 
         if (walletResult.rows.length === 0) {
-          // User has no wallet — create one with negative balance
-          // This handles edge cases from data issues
           console.error(`⚠️  No wallet found for u_id=${bill.u_id}. Skipping deduction.`);
           continue;
         }
 
-        const { wallet_id } = walletResult.rows[0];
+        const { wallet_id, balance } = walletResult.rows[0];
+        const currentBalance = parseFloat(balance);
+        const actualDeduction = Math.min(bill.cost, currentBalance);
+
+        // Deduct from wallet
+        await client.query(
+          `UPDATE wallets
+           SET balance = balance - $1,
+               total_spent = total_spent + $1,
+               updated_at = NOW()
+           WHERE wallet_id = $2`,
+          [actualDeduction, wallet_id]
+        );
 
         // 2c. Record the transaction in the ledger
         await client.query(
@@ -661,7 +830,7 @@ const endSession = async ({ u_id, session_id, total_units }) => {
           [
             wallet_id,
             session_id,
-            bill.cost,
+            actualDeduction,
             `AC Session #${session_id} — ${bill.units_consumed} kWh`,
           ]
         );
@@ -698,5 +867,6 @@ module.exports = {
   joinSession,
   leaveSession,
   approveLeave,
+  rejectLeave,
   endSession,
 };

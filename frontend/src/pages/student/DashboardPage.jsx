@@ -3,11 +3,12 @@
 // Student Dashboard — Stitch Design + Live API Data
 // =============================================================================
 
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import Toast from '../../components/ui/Toast';
 import './StudentPages.css';
 
 // ─── Stat Card Component ──────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ const Skeleton = ({ className }) => (
 
 const DashboardPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [wallet, setWallet]           = useState(null);
   const [monthlyStats, setMonthly]    = useState(null);
@@ -42,6 +44,7 @@ const DashboardPage = () => {
   const [pendingInvites, setPending]  = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
+  const [toastMessage, setToastMessage] = useState(null);
   
   const [elapsedText, setElapsedText] = useState('00:00:00');
 
@@ -57,9 +60,8 @@ const DashboardPage = () => {
   });
 
   // ─── Fetch all dashboard data in parallel ────────────────────────────────
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      setLoading(true);
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
       try {
         const [walletRes, sessionsRes, activeSessionRes, roomRes, invitesRes] = await Promise.allSettled([
           api.get('/wallet'),
@@ -95,9 +97,49 @@ const DashboardPage = () => {
       } finally {
         setLoading(false);
       }
-    };
-    fetchDashboard();
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleParticipantAction = async (e, action) => {
+    e.stopPropagation();
+    setError('');
+    try {
+      const res = await api.post(`/sessions/participants/${action}`, { session_id: activeSession.session_id });
+      setToastMessage(res.data?.message || `Successfully ${action}ed session invite.`);
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.response?.data?.message || `Failed to ${action} session invite.`);
+    }
+  };
+
+  const handleRoomInviteAction = async (e, invitation_id, action) => {
+    e.stopPropagation();
+    setError('');
+    try {
+      const endpoint = action === 'accept' ? '/rooms/invite/accept' : '/rooms/invite/reject';
+      const res = await api.post(endpoint, { invitation_id });
+      setToastMessage(res.data?.message || `Successfully ${action}ed room invite.`);
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.response?.data?.message || `Failed to ${action} room invite.`);
+    }
+  };
+
+  const handleLeaveAction = async (e, leaving_u_id, action) => {
+    e.stopPropagation();
+    setError('');
+    try {
+      const res = await api.post(`/sessions/participants/leave/${action}`, { session_id: activeSession.session_id, leaving_u_id });
+      setToastMessage(res.data?.message || `Leave request ${action}ed.`);
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.response?.data?.message || `Failed to ${action} leave request.`);
+    }
+  };
 
   // Update elapsed time every second if active session exists
   useEffect(() => {
@@ -188,37 +230,178 @@ const DashboardPage = () => {
           </div>
         </header>
 
-        {error && <div className="page-error" style={{marginBottom: '20px', padding: '12px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '8px', border: '1px solid rgba(255, 107, 107, 0.2)'}}>⚠️ {error}</div>}
+        {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
+        {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
         
         {myParticipant?.status === 'invited' && (
-          <div style={{marginBottom: '24px', padding: '16px', background: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '12px', border: '1px solid rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+          <div 
+            onClick={() => navigate('/sessions')}
+            style={{marginBottom: '24px', padding: '16px', background: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '12px', border: '1px solid rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.15)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.1)'}
+          >
             <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
               <span className="material-symbols-outlined">bolt</span>
               <strong>You have been invited to join an active AC session!</strong>
             </div>
-            <Link to="/sessions" className="btn-primary-sm" style={{background: '#6C63FF', color: '#FFF'}}>View Session</Link>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={(e) => handleParticipantAction(e, 'accept')} 
+                style={{
+                  padding: '10px 32px', 
+                  backgroundColor: 'rgba(0, 212, 170, 0.1)', 
+                  color: '#00D4AA', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(0, 212, 170, 0.2)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
+              >
+                Accept
+              </button>
+              <button 
+                onClick={(e) => handleParticipantAction(e, 'reject')} 
+                style={{
+                  padding: '10px 32px', 
+                  backgroundColor: 'transparent', 
+                  color: '#FF6B6B', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(255, 107, 107, 0.2)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Reject
+              </button>
+            </div>
           </div>
         )}
 
-        {pendingInvites.length > 0 && (
-          <div style={{marginBottom: '24px', padding: '16px', background: 'rgba(251, 146, 60, 0.1)', color: '#FB923C', borderRadius: '12px', border: '1px solid rgba(251, 146, 60, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+        {pendingInvites.map(invite => (
+          <div 
+            key={invite.invitation_id}
+            onClick={() => navigate('/room')}
+            style={{marginBottom: '24px', padding: '16px', background: 'rgba(251, 146, 60, 0.1)', color: '#FB923C', borderRadius: '12px', border: '1px solid rgba(251, 146, 60, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.15)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)'}
+          >
             <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
               <span className="material-symbols-outlined">notifications_active</span>
-              <strong>You have {pendingInvites.length} pending room invitation(s)!</strong>
+              <strong>{invite.invited_by_name || 'Someone'} invited you to join {invite.room_name || `Room ${invite.room_no}`}!</strong>
             </div>
-            <Link to="/room" className="btn-primary-sm" style={{background: '#FB923C', color: '#111'}}>View Invites</Link>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'accept')} 
+                style={{
+                  padding: '10px 32px', 
+                  backgroundColor: 'rgba(0, 212, 170, 0.1)', 
+                  color: '#00D4AA', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(0, 212, 170, 0.2)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
+              >
+                Accept
+              </button>
+              <button 
+                onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'reject')} 
+                style={{
+                  padding: '10px 32px', 
+                  backgroundColor: 'transparent', 
+                  color: '#FF6B6B', 
+                  fontSize: '11px', 
+                  fontWeight: 'bold', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(255, 107, 107, 0.2)', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.05em',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Reject
+              </button>
+            </div>
           </div>
-        )}
+        ))}
 
         {/* ── Pending Leave Requests Banner ── */}
         {activeSession && activeSession.status === 'active' && myParticipant?.status === 'accepted' &&
           activeSession.participants.filter(p => p.leave_status === 'pending' && Number(p.u_id) !== Number(user.u_id)).map(leaver => (
-            <div key={leaver.u_id} style={{marginBottom: '24px', padding: '16px', background: 'rgba(255, 171, 0, 0.1)', color: '#FFAB00', borderRadius: '12px', border: '1px solid rgba(255, 171, 0, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+            <div 
+              key={leaver.u_id} 
+              onClick={() => navigate('/sessions')}
+              style={{marginBottom: '24px', padding: '16px', background: 'rgba(255, 171, 0, 0.1)', color: '#FFAB00', borderRadius: '12px', border: '1px solid rgba(255, 171, 0, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.15)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.1)'}
+            >
               <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                 <span className="material-symbols-outlined">directions_run</span>
                 <strong>{leaver.name} wants to leave the active AC session early.</strong>
               </div>
-              <Link to="/sessions" className="btn-primary-sm" style={{background: '#FFAB00', color: '#111'}}>Review</Link>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={(e) => handleLeaveAction(e, leaver.u_id, 'approve')} 
+                  style={{
+                    padding: '10px 32px', 
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)', 
+                    color: '#00D4AA', 
+                    fontSize: '11px', 
+                    fontWeight: 'bold', 
+                    borderRadius: '8px', 
+                    border: '1px solid rgba(0, 212, 170, 0.2)', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
+                >
+                  Accept
+                </button>
+                <button 
+                  onClick={(e) => handleLeaveAction(e, leaver.u_id, 'reject')} 
+                  style={{
+                    padding: '10px 32px', 
+                    backgroundColor: 'transparent', 
+                    color: '#FF6B6B', 
+                    fontSize: '11px', 
+                    fontWeight: 'bold', 
+                    borderRadius: '8px', 
+                    border: '1px solid rgba(255, 107, 107, 0.2)', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           ))
         }

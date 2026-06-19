@@ -114,10 +114,13 @@ const getReports = async (req, res, next) => {
 };
 
 // GET /api/v1/admin/transactions
+// ?page=1&limit=7
 const getTransactions = async (req, res, next) => {
   try {
-    const transactions = await adminService.getTransactions({ admin: req.user });
-    res.status(200).json({ success: true, data: { transactions, count: transactions.length } });
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 7;
+    const { transactions, pagination } = await adminService.getTransactions({ admin: req.user, page, limit });
+    res.status(200).json({ success: true, data: { transactions, pagination } });
   } catch (err) { next(err); }
 };
 

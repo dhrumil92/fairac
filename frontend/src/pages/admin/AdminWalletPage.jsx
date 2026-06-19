@@ -6,6 +6,8 @@ import api from '../../api/axios';
 const AdminWalletPage = () => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -16,11 +18,13 @@ const AdminWalletPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (page = 1) => {
     try {
       setIsLoading(true);
-      const res = await api.get('/admin/transactions');
+      const res = await api.get(`/admin/transactions?page=${page}&limit=7`);
       setTransactions(res.data.data.transactions || []);
+      setPagination(res.data.data.pagination || null);
+      setCurrentPage(page);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load transactions');
     } finally {
@@ -29,7 +33,7 @@ const AdminWalletPage = () => {
   };
 
   useEffect(() => {
-    fetchTransactions();
+    fetchTransactions(1);
   }, []);
 
   const handleRecharge = async (e) => {
@@ -48,7 +52,7 @@ const AdminWalletPage = () => {
       setStudentId('');
       setAmount('');
       setNote('');
-      fetchTransactions(); // Refresh ledger
+      fetchTransactions(1); // Refresh ledger to page 1
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to authorize credit transfer');
     } finally {
@@ -171,7 +175,7 @@ const AdminWalletPage = () => {
                       ) : transactions.length === 0 ? (
                         <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No transactions found</td></tr>
                       ) : transactions.map(tx => (
-                        <tr key={tx.wt_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <tr key={tx.txn_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                           <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
                             <p style={{ fontSize: '14px', color: 'white', margin: 0, fontWeight: '500' }}>{new Date(tx.created_at).toLocaleDateString()}</p>
                             <p style={{ fontSize: '10px', color: '#64748B', margin: 0 }}>{new Date(tx.created_at).toLocaleTimeString()}</p>
@@ -210,6 +214,29 @@ const AdminWalletPage = () => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {pagination && pagination.total_pages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(15, 23, 41, 0.5)' }}>
+                    <span style={{ fontSize: '14px', color: '#94A3B8' }}>
+                      Showing page {pagination.page} of {pagination.total_pages} ({pagination.total} records)
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => fetchTransactions(currentPage - 1)}
+                        disabled={!pagination.has_prev}
+                        style={{ padding: '8px 16px', backgroundColor: pagination.has_prev ? 'rgba(108, 99, 255, 0.1)' : 'rgba(255,255,255,0.05)', color: pagination.has_prev ? '#6C63FF' : '#475569', border: '1px solid ' + (pagination.has_prev ? 'rgba(108, 99, 255, 0.3)' : 'transparent'), borderRadius: '8px', cursor: pagination.has_prev ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>
+                        Previous
+                      </button>
+                      <button 
+                        onClick={() => fetchTransactions(currentPage + 1)}
+                        disabled={!pagination.has_next}
+                        style={{ padding: '8px 16px', backgroundColor: pagination.has_next ? 'rgba(108, 99, 255, 0.1)' : 'rgba(255,255,255,0.05)', color: pagination.has_next ? '#6C63FF' : '#475569', border: '1px solid ' + (pagination.has_next ? 'rgba(108, 99, 255, 0.3)' : 'transparent'), borderRadius: '8px', cursor: pagination.has_next ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
           </div>

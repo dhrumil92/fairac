@@ -71,6 +71,7 @@ const RoomPage = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRoomData();
   }, []);
 
@@ -162,10 +163,10 @@ const RoomPage = () => {
   return (
     <div className="page-layout">
       <Sidebar />
-      {toastMessage && <Toast message={toastMessage} duration={10000} onClose={() => setToastMessage(null)} />}
+      {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
+      {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
+      {successMsg && <Toast message={successMsg} type="success" duration={10000} onClose={() => setSuccessMsg('')} />}
       <main className="page-main">
-        {error && <div className="page-error" style={{marginBottom: '20px', padding: '12px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '8px', border: '1px solid rgba(255, 107, 107, 0.2)'}}>⚠️ {error}</div>}
-        {successMsg && <div className="page-success" style={{marginBottom: '20px', padding: '12px', background: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', borderRadius: '8px', border: '1px solid rgba(0, 212, 170, 0.2)'}}>✅ {successMsg}</div>}
 
         {loading ? (
           <div style={{color: '#fff'}}>Loading room data...</div>
@@ -181,8 +182,11 @@ const RoomPage = () => {
             <div className="room-info-card glass-card">
               <div className="room-bg-glow"></div>
               <div className="room-header">
-                <span className="room-number-label">{room.room_name || `Room ${room.room_no}`}</span>
-                <div className="hostel-name">{room.hostel_name || 'Hostel'}</div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                  <span className="material-symbols-outlined" style={{color: '#6C63FF', fontSize: '18px'}}>apartment</span>
+                  <span className="hostel-subtitle">{room.hostel_name || 'Hostel'}</span>
+                </div>
+                <div className="room-main-title">{room.room_name || `Room ${room.room_no}`}</div>
               </div>
               <div className="room-stats-grid">
                 <div className="stat-group">
@@ -226,7 +230,7 @@ const RoomPage = () => {
             </div>
 
             {/* Invite Section (Only Owner) */}
-            {room.my_role === 'owner' && (
+            {room.my_role === 'owner' && room.members?.length < room.capacity && (
               <div className="glass-card" style={{padding: '24px', borderRadius: '16px'}}>
                 <h3 className="section-heading" style={{fontSize: '1rem', marginBottom: '16px'}}>Invite Roommate</h3>
                 <form className="form-row" onSubmit={handleInvite}>

@@ -392,14 +392,19 @@ const getReports = async ({ admin, month, year }) => {
 // =============================================================================
 // Gets all wallet transactions for the admin's hostel.
 //
-const getTransactions = async ({ admin }) => {
+const getTransactions = async ({ admin, page = 1, limit = 7 }) => {
   assertAdmin(admin);
+
+  const pageNum  = Math.max(1, parseInt(page, 10)  || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 7));
+  const offset   = (pageNum - 1) * limitNum;
 
   const result = await db.query(
     `SELECT
-       wt.wt_id, wt.amount, wt.type, wt.description, wt.created_at,
+       wt.txn_id, wt.amount, wt.type, wt.description, wt.created_at,
        u.name as student_name, u.email as student_email,
-       w.balance
+       w.balance,
+       COUNT(*) OVER() AS total_count
      FROM wallet_transactions wt
      JOIN wallets w ON w.wallet_id = wt.wallet_id
      JOIN users u ON u.u_id = w.u_id
@@ -407,10 +412,27 @@ const getTransactions = async ({ admin }) => {
      JOIN rooms r ON r.r_id = rm.r_id
      WHERE r.hostel_id = $1
      ORDER BY wt.created_at DESC
-     LIMIT 100`,
-    [admin.hostel_id]
+     LIMIT $2 OFFSET $3`,
+    [admin.hostel_id, limitNum, offset]
   );
-  return result.rows;
+
+  const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count, 10) : 0;
+  const totalPages = Math.ceil(total / limitNum);
+
+  return {
+    transactions: result.rows.map((row) => {
+      const { total_count, ...txn } = row;
+      return txn;
+    }),
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      total_pages: totalPages,
+      has_next: pageNum < totalPages,
+      has_prev: pageNum > 1,
+    },
+  };
 };
 
 module.exports = {

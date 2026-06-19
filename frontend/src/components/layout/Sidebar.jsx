@@ -3,8 +3,10 @@
 // Shared Navigation Sidebar — Stitch Design
 // =============================================================================
 
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../api/axios';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
@@ -28,6 +30,30 @@ const Sidebar = () => {
   const { pathname } = useLocation();
   const { isAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const [hasActiveSession, setHasActiveSession] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      const checkSession = async () => {
+        try {
+          const res = await api.get('/sessions/active');
+          const d = res.data?.data;
+          const sessionData = d && d.session !== undefined ? d.session : d;
+          if (sessionData && sessionData.status === 'active') {
+            setHasActiveSession(true);
+          } else {
+            setHasActiveSession(false);
+          }
+        } catch (err) {
+          setHasActiveSession(false);
+        }
+      };
+      
+      checkSession();
+      const interval = setInterval(checkSession, 10000); // Check every 10s
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin]);
 
   const navItems = isAdmin ? ADMIN_NAV_ITEMS : NAV_ITEMS;
 
@@ -44,6 +70,25 @@ const Sidebar = () => {
         </div>
         {isAdmin && <span className="sidebar-admin-badge">Admin</span>}
       </div>
+
+      {/* ── Start Session Action ── */}
+      {!isAdmin && (
+        <div className="sidebar-action">
+          <Link to="/sessions" className={`sidebar-start-btn ${hasActiveSession ? 'active-session-btn' : ''}`}>
+            {hasActiveSession ? (
+              <>
+                <span className="material-symbols-outlined animate-pulse">sensors</span>
+                Session is Active
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">bolt</span>
+                Start Session
+              </>
+            )}
+          </Link>
+        </div>
+      )}
 
       {/* ── Navigation ── */}
       <nav className="sidebar-nav">
@@ -64,13 +109,6 @@ const Sidebar = () => {
 
       {/* ── Bottom Actions ── */}
       <div className="sidebar-footer">
-        {!isAdmin && (
-          <Link to="/sessions" className="sidebar-start-btn">
-            <span className="material-symbols-outlined">bolt</span>
-            Start Session
-          </Link>
-        )}
-        
         <div className="sidebar-divider"></div>
         
         <Link to="#" className="sidebar-bottom-link">

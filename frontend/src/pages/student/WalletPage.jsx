@@ -7,8 +7,8 @@ import { useState, useEffect } from 'react';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
-import './StudentPages.css';
 import Toast from '../../components/ui/Toast';
+import './StudentPages.css';
 
 const StatCard = ({ icon, iconColor, iconBg, label, value }) => (
   <div className="stat-card glass-card">
@@ -30,31 +30,35 @@ const WalletPage = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [error, setError] = useState('');
+  const [filterType, setFilterType] = useState('all');
   const [pagination, setPagination] = useState({});
-  const [toastMessage, setToastMessage] = useState('');
 
   const fetchWalletData = async () => {
     try {
       setLoading(true);
       const [walletRes, txnRes] = await Promise.all([
         api.get('/wallet'),
-        api.get(`/wallet/transactions?page=${page}&limit=10`)
+        api.get(`/wallet/transactions?page=${page}&limit=7${filterType !== 'all' ? `&type=${filterType}` : ''}`)
       ]);
       setWallet(walletRes.data?.data?.wallet || null);
       setTransactions(txnRes.data?.data?.transactions || []);
       setPagination(txnRes.data?.data?.pagination || {});
     } catch (err) {
-      console.error('Error fetching wallet:', err);
-      setToastMessage('Failed to load wallet data.');
+      if (err.response?.status !== 404) {
+        setError(err.response?.data?.message || 'Failed to fetch wallet data.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWalletData();
     // eslint-disable-next-line
-  }, [page]);
+  }, [page, filterType]);
 
   const handleAddFundsClick = () => {
     setToastMessage('Please contact the Hostel Admin via UPI or Cash to recharge your wallet.');
@@ -62,10 +66,9 @@ const WalletPage = () => {
 
   return (
     <div className="page-layout">
-      {toastMessage && (
-        <Toast message={toastMessage} onClose={() => setToastMessage('')} />
-      )}
       <Sidebar />
+      {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
+      {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
       <main className="page-main">
         <header className="page-header">
           <div>
@@ -115,7 +118,7 @@ const WalletPage = () => {
             <h2 style={{ fontSize: '1.25rem', color: 'white', marginBottom: '8px' }}>Need more funds?</h2>
             <p style={{ color: '#8892B0', fontSize: '0.875rem' }}>Your current balance is {`₹${parseFloat(wallet?.balance || 0).toFixed(2)}`}. Add funds to continue booking AC sessions.</p>
           </div>
-          <button 
+          <button
             onClick={handleAddFundsClick}
             className="w-full sm:w-auto py-3 px-6 bg-[#6C63FF] text-white font-semibold rounded-xl shadow-[0_0_20px_rgba(108,99,255,0.3)] transition-all hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
           >
@@ -126,8 +129,22 @@ const WalletPage = () => {
 
         {/* ── Transaction History Table ── */}
         <section className="table-section glass-card">
-          <div className="table-header">
+          <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="section-heading">Transaction Ledger</h2>
+            <div className="relative">
+              <select 
+                className="bg-[#0F1729] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-[#6C63FF] outline-none cursor-pointer appearance-none pr-8"
+                value={filterType}
+                onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
+              >
+                <option value="all">All Transactions</option>
+                <option value="consumption">AC Consumption</option>
+                <option value="recharge">Recharges</option>
+              </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#6C63FF]">
+                <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+              </div>
+            </div>
           </div>
 
           {loading && transactions.length === 0 ? (
@@ -140,7 +157,7 @@ const WalletPage = () => {
               <p>No transactions found.</p>
             </div>
           ) : (
-            <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <div className="table-wrapper">
               <table className="data-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -163,12 +180,12 @@ const WalletPage = () => {
                         </td>
                         <td style={{ padding: '12px', color: 'white' }}>{txn.description}</td>
                         <td style={{ padding: '12px', textTransform: 'capitalize' }}>
-                          <span style={{ 
-                            padding: '4px 8px', 
-                            borderRadius: '4px', 
-                            fontSize: '0.75rem', 
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
                             backgroundColor: isCredit ? 'rgba(0, 212, 170, 0.1)' : 'rgba(255, 107, 107, 0.1)',
-                            color: amountColor 
+                            color: amountColor
                           }}>
                             {txn.type}
                           </span>
@@ -189,8 +206,8 @@ const WalletPage = () => {
 
           {/* Pagination Controls */}
           {pagination.total_pages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px', marginBottom: '16px', marginRight: '16px' }}>
+              <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={!pagination.has_prev}
                 style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: pagination.has_prev ? 'white' : '#555', cursor: pagination.has_prev ? 'pointer' : 'not-allowed' }}
@@ -200,7 +217,7 @@ const WalletPage = () => {
               <span style={{ color: '#8892B0', display: 'flex', alignItems: 'center' }}>
                 Page {page} of {pagination.total_pages}
               </span>
-              <button 
+              <button
                 onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))}
                 disabled={!pagination.has_next}
                 style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: pagination.has_next ? 'white' : '#555', cursor: pagination.has_next ? 'pointer' : 'not-allowed' }}

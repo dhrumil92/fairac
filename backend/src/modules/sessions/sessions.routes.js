@@ -101,6 +101,9 @@ router.post('/participants/leave', participantActionValidation, controller.leave
 // POST /api/v1/sessions/participants/leave/approve
 router.post('/participants/leave/approve', approveLeaveValidation, controller.approveLeaveSession);
 
+// POST /api/v1/sessions/participants/leave/reject
+router.post('/participants/leave/reject', approveLeaveValidation, controller.rejectLeaveSession);
+
 // Dynamic routes after static ones
 
 // GET /api/v1/sessions/:id — get specific session details

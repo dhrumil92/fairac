@@ -3,7 +3,7 @@
 // Student Profile Page — Exact Google Stitch Design
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
@@ -20,14 +20,35 @@ const ProfilePage = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [walletBalance, setWalletBalance] = useState(null);
+
+  const [myRoom, setMyRoom] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [walletRes, roomRes] = await Promise.allSettled([
+          api.get('/wallet'),
+          api.get('/rooms/my')
+        ]);
+        if (walletRes.status === 'fulfilled') {
+          setWalletBalance(walletRes.value.data?.data?.wallet?.balance || 0);
+        }
+        if (roomRes.status === 'fulfilled') {
+          setMyRoom(roomRes.value.data?.data?.room || null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch data for profile', err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '??';
 
-  const memberSince = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
-    : 'Unknown';
+
 
   const handleInputChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -211,19 +232,23 @@ const ProfilePage = () => {
                 </div>
               </div>
 
-              {/* Member Since Field (Not editable) */}
+              {/* Wallet Balance Field (Not editable) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Member Since</label>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Wallet Balance</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
-                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>{memberSince}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>
+                    {walletBalance !== null ? `₹${parseFloat(walletBalance).toFixed(2)}` : 'Loading...'}
+                  </p>
                 </div>
               </div>
 
-              {/* Organization Field (Not editable) */}
+              {/* Room Field (Not editable) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Organization</label>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Number</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
-                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>FairAC User</p>
+                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>
+                    {myRoom ? (myRoom.room_name || myRoom.room_no) : 'Not assigned'}
+                  </p>
                 </div>
               </div>
 
