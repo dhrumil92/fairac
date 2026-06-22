@@ -1,13 +1,13 @@
 require('dotenv').config();
-const db = require('./src/config/db');
-const sessionsService = require('./src/modules/sessions/sessions.service');
+const iotService = require('./src/modules/iot/iot.service');
 
 (async () => {
   try {
-    const active = await sessionsService.getActiveSession(8);
-    console.log(JSON.stringify(active, null, 2));
+    const status = await iotService.getDeviceStatus('ESP32_A0B765DBC9F4');
+    console.log('Status returned by service:', status);
   } catch (err) {
     console.error(err);
+  } finally {
+    process.exit();
   }
-  process.exit();
 })();

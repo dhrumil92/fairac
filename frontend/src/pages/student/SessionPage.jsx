@@ -122,6 +122,26 @@ const SessionPage = () => {
     return () => clearInterval(pollInterval);
   }, [activeSession]);
 
+  // IoT Device Status
+  const [deviceStatus, setDeviceStatus] = useState(null);
+
+  useEffect(() => {
+    let pollInterval;
+    if (myRoom && myRoom.r_id) {
+      const fetchDeviceStatus = async () => {
+        try {
+          const res = await api.get(`/iot/room/${myRoom.r_id}/status`);
+          setDeviceStatus(res.data?.data);
+        } catch (err) {
+          // ignore or handle
+        }
+      };
+      fetchDeviceStatus(); // initial
+      pollInterval = setInterval(fetchDeviceStatus, 10000);
+    }
+    return () => clearInterval(pollInterval);
+  }, [myRoom]);
+
 
 
   const handleError = (err, defaultMsg) => {
@@ -248,6 +268,11 @@ const SessionPage = () => {
 
   const powerConsumption = () => {
     if (!activeSession) return '0.000';
+    if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
+      // Use real telemetry if available
+      return parseFloat(activeSession.total_units).toFixed(3);
+    }
+    // Fallback to time-based estimation
     const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
     return (Math.max(0, hours) * 1.5).toFixed(3);
   };
@@ -497,12 +522,39 @@ const SessionPage = () => {
                     </div>
                   </section>
 
+                  {/* Device Status Card */}
+                  <section className={`${glassCardClasses} rounded-2xl p-6 relative`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                          <span className="material-symbols-outlined text-sm">router</span>
+                        </div>
+                        <h3 className="text-md font-headline font-bold text-white">IoT Device</h3>
+                      </div>
+                      {deviceStatus?.status === 'online' ? (
+                        <span className="px-2 py-1 bg-[#00D4AA]/10 border border-[#00D4AA]/20 rounded text-[#00D4AA] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse"></span>
+                          Online
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 bg-[#FF6B6B]/10 border border-[#FF6B6B]/20 rounded text-[#FF6B6B] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B6B]"></span>
+                          Offline
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      <p>Linked to: <span className="text-slate-300 font-mono">room_{myRoom.room_no}</span></p>
+                      <p className="mt-1">Last seen: <span className="text-slate-300">{deviceStatus?.seconds_since_last !== undefined ? `${Math.floor(deviceStatus.seconds_since_last / 60)}m ${deviceStatus.seconds_since_last % 60}s ago` : 'Never'}</span></p>
+                    </div>
+                  </section>
+
                 </div>
 
                 {/* RIGHT COLUMN: Active Session Live View */}
                 {activeSession && (
                   <div className="lg:col-span-8">
-                    <section className={`${glassCardClasses} rounded-3xl overflow-hidden shadow-2xl relative min-h-[500px] flex flex-col`}>
+                    <section className={`${glassCardClasses} rounded-3xl overflow-hidden shadow-2xl relative min-h-[350px] flex flex-col`}>
 
                       {/* Header with Status */}
                       <div className="p-8 border-b border-white/5 flex justify-between items-center">
@@ -526,31 +578,38 @@ const SessionPage = () => {
 
                       <div className="flex-1 p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Large Metrics */}
-                        <div className="space-y-8">
+                        <div className="space-y-4">
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Elapsed Time</p>
-                            <div className="text-5xl font-headline font-black text-white flex items-baseline gap-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                            <div className="text-4xl font-headline font-black text-white flex items-baseline gap-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {elapsedText}
                             </div>
                           </div>
 
-                          <div className="space-y-1 mt-4">
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Consumption</p>
-                            <div className="text-2xl font-headline font-bold text-white flex items-baseline gap-2">
-                              {powerConsumption()} <span className="text-lg text-slate-400">kWh</span>
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Power</p>
+                            <div className="text-xl font-headline font-bold text-white flex items-baseline gap-2">
+                              {deviceStatus?.current_power_w || 0} <span className="text-sm text-slate-400">W</span>
                             </div>
                           </div>
 
-                          <div className="space-y-1 mt-4">
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Consumption</p>
+                            <div className="text-xl font-headline font-bold text-white flex items-baseline gap-2">
+                              {powerConsumption()} <span className="text-sm text-slate-400">kWh</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
                             <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Estimated Cost</p>
-                            <div className="text-4xl font-headline font-bold text-[#00D4AA] flex items-baseline gap-2">
-                              <span className="text-xl">₹</span>{estimatedCost()}
+                            <div className="text-3xl font-headline font-bold text-[#00D4AA] flex items-baseline gap-2">
+                              <span className="text-lg">₹</span>{estimatedCost()}
                             </div>
                           </div>
 
                           {/* Consumption Chart Visualization */}
-                          <div className="pt-4">
-                            <div className="flex justify-between items-end h-32 gap-1.5">
+                          <div className="pt-2">
+                            <div className="flex justify-between items-end h-20 gap-1.5">
                               <div className="flex-1 bg-slate-800/50 rounded-t-sm relative group"><div className="absolute bottom-0 left-0 right-0 bg-[#6C63FF]/30 h-[20%] rounded-t-sm group-hover:bg-[#6C63FF]/50 transition-all"></div></div>
                               <div className="flex-1 bg-slate-800/50 rounded-t-sm relative group"><div className="absolute bottom-0 left-0 right-0 bg-[#6C63FF]/30 h-[35%] rounded-t-sm group-hover:bg-[#6C63FF]/50 transition-all"></div></div>
                               <div className="flex-1 bg-slate-800/50 rounded-t-sm relative group"><div className="absolute bottom-0 left-0 right-0 bg-[#6C63FF]/40 h-[25%] rounded-t-sm group-hover:bg-[#6C63FF]/50 transition-all"></div></div>
