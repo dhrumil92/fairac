@@ -124,6 +124,43 @@ const getTransactions = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// GET /api/v1/admin/rooms/:id
+const getRoomDetails = async (req, res, next) => {
+  try {
+    const details = await adminService.getRoomDetails({
+      admin: req.user,
+      room_id: parseInt(req.params.id, 10),
+    });
+    res.status(200).json({ success: true, data: details });
+  } catch (err) { next(err); }
+};
+
+// PATCH /api/v1/admin/rooms/:id/remove-member
+const removeMemberFromRoom = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const result = await adminService.removeMemberFromRoom({
+      admin: req.user,
+      room_id: parseInt(req.params.id, 10),
+      u_id: parseInt(req.body.u_id, 10),
+    });
+    res.status(200).json({ success: true, message: result.message });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/admin/rooms/:id/invite
+const inviteStudentToRoom = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const result = await adminService.inviteStudentToRoom({
+      admin: req.user,
+      room_id: parseInt(req.params.id, 10),
+      identifier: req.body.student_identifier,
+    });
+    res.status(200).json({ success: true, message: result.message });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   rechargeWallet,
   deductWallet,
@@ -133,4 +170,7 @@ module.exports = {
   getDashboard,
   getReports,
   getTransactions,
+  getRoomDetails,
+  removeMemberFromRoom,
+  inviteStudentToRoom,
 };

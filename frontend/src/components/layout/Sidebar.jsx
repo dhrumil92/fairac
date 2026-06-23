@@ -28,7 +28,7 @@ const ADMIN_NAV_ITEMS = [
 
 const Sidebar = () => {
   const { pathname } = useLocation();
-  const { isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
@@ -67,6 +67,7 @@ const Sidebar = () => {
         <div>
           <h2 className="sidebar-logo-text">FairAC</h2>
           <p className="sidebar-logo-sub">Student Billing</p>
+          {isAdmin && <p className="sidebar-logo-sub" style={{ fontSize: '9px', color: '#00D4AA', marginTop: '2px', fontWeight: 'bold' }}>{user?.hostel_name}</p>}
         </div>
         {isAdmin && <span className="sidebar-admin-badge">Admin</span>}
       </div>

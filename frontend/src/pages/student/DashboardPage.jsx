@@ -12,8 +12,8 @@ import Toast from '../../components/ui/Toast';
 import './StudentPages.css';
 
 // ─── Stat Card Component ──────────────────────────────────────────────────────
-const StatCard = ({ icon, iconColor, iconBg, label, value, badge, badgeColor }) => (
-  <div className="stat-card glass-card">
+const StatCard = ({ icon, iconColor, iconBg, label, value, badge, badgeColor, onClick }) => (
+  <div className={`stat-card glass-card ${onClick ? 'cursor-pointer hover:scale-105 transition-all duration-200' : ''}`} onClick={onClick}>
     <div className="stat-card-header">
       <div className="stat-card-icon" style={{ background: iconBg, color: iconColor }}>
         <span className="material-symbols-outlined">{icon}</span>
@@ -40,6 +40,7 @@ const DashboardPage = () => {
   const [monthlyStats, setMonthly]    = useState(null);
   const [activeSession, setActive]    = useState(null);
   const [recentSessions, setRecent]   = useState([]);
+  const [totalSessions, setTotalSessions] = useState(0);
   const [roomInfo, setRoomInfo]       = useState(null);
   const [pendingInvites, setPending]  = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -79,6 +80,7 @@ const DashboardPage = () => {
         if (sessionsRes.status === 'fulfilled') {
           const data = sessionsRes.value.data.data;
           setRecent(data.sessions || data || []);
+          setTotalSessions(data.pagination?.total || data.sessions?.length || data?.length || 0);
         }
         if (activeSessionRes.status === 'fulfilled') {
           const d = activeSessionRes.value.data.data;
@@ -162,7 +164,6 @@ const DashboardPage = () => {
     return () => clearInterval(interval);
   }, [activeSession]);
 
-  // Auto-poll every 10 seconds to sync with backend worker auto-termination
   useEffect(() => {
     let pollInterval;
     if (activeSession && activeSession.status === 'active') {
@@ -170,9 +171,13 @@ const DashboardPage = () => {
         const fetchSilently = async () => {
           try {
             const res = await api.get('/sessions/active');
-            if (res.data?.data?.session?.status !== 'active') {
+            const fetchedSession = res.data?.data?.session;
+            if (fetchedSession?.status !== 'active') {
               // Backend ended the session, refresh dashboard
               fetchDashboardData();
+            } else {
+              // Update the active session so consumption and cost stay live
+              setActive(fetchedSession);
             }
           } catch (err) {
             if (err.response?.status === 404) {
@@ -184,7 +189,7 @@ const DashboardPage = () => {
       }, 10000);
     }
     return () => clearInterval(pollInterval);
-  }, [activeSession]);
+  }, [activeSession, fetchDashboardData]);
 
   let myParticipant = null;
   if (activeSession && activeSession.participants) {
@@ -193,15 +198,24 @@ const DashboardPage = () => {
 
   const estimatedCost = () => {
     if (!activeSession || !roomInfo) return '0.00';
-    const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    const cost = Math.max(0, hours) * 1.5 * parseFloat(roomInfo.rate_per_unit || 10);
+    let units = 0;
+    if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
+      units = parseFloat(activeSession.total_units);
+    } else {
+      const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
+      units = Math.max(0, hours) * 1.4;
+    }
+    const cost = units * parseFloat(roomInfo.rate_per_unit || 10);
     return cost.toFixed(2);
   };
 
   const powerConsumption = () => {
     if (!activeSession) return '0.000';
+    if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
+      return parseFloat(activeSession.total_units).toFixed(3);
+    }
     const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    return (Math.max(0, hours) * 1.5).toFixed(3);
+    return (Math.max(0, hours) * 1.4).toFixed(3);
   };
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
@@ -440,9 +454,10 @@ const DashboardPage = () => {
                 iconColor="#60A5FA"
                 iconBg="rgba(96,165,250,0.15)"
                 label="Sessions This Month"
-                value={recentSessions.length || '0'}
+                value={totalSessions || '0'}
                 badge="Usage sessions"
                 badgeColor="#60A5FA"
+                onClick={() => navigate('/sessions#history')}
               />
               <StatCard
                 icon="home_work"
@@ -452,6 +467,7 @@ const DashboardPage = () => {
                 value={roomInfo ? roomInfo.room_number || roomInfo.room_name || 'Room —' : 'No room'}
                 badge={roomInfo ? roomInfo.hostel_name || 'Hostel' : 'Join a room'}
                 badgeColor="#FB923C"
+                onClick={() => navigate('/room')}
               />
             </>
           )}

@@ -78,6 +78,15 @@ const SessionPage = () => {
     fetchSessionData();
   }, [page]);
 
+  useEffect(() => {
+    if (window.location.hash === '#history' && !loading) {
+      const el = document.getElementById('history');
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    }
+  }, [loading]);
+
   // Update elapsed time every second if active session exists
   useEffect(() => {
     let interval;
@@ -99,7 +108,6 @@ const SessionPage = () => {
     return () => clearInterval(interval);
   }, [activeSession]);
 
-  // Auto-poll every 10 seconds to sync with backend worker auto-termination
   useEffect(() => {
     let pollInterval;
     if (activeSession && activeSession.status === 'active') {
@@ -107,8 +115,11 @@ const SessionPage = () => {
         const fetchSilently = async () => {
           try {
             const res = await api.get('/sessions/active');
-            if (res.data?.data?.session?.status !== 'active') {
+            const fetchedSession = res.data?.data?.session;
+            if (fetchedSession?.status !== 'active') {
               fetchSessionData();
+            } else {
+              setActiveSession(fetchedSession);
             }
           } catch (err) {
             if (err.response?.status === 404) {
@@ -120,6 +131,7 @@ const SessionPage = () => {
       }, 10000);
     }
     return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession]);
 
   // IoT Device Status
@@ -178,18 +190,18 @@ const SessionPage = () => {
 
   const handleEndSession = async () => {
     clearMessages();
-    // Simulate automated IoT Smart Meter reading instead of asking the student
     const startTime = new Date(activeSession.start_time).getTime();
     const elapsedHours = (new Date().getTime() - startTime) / (1000 * 60 * 60);
-    // Assume AC consumes 1.5 kWh per hour, safe guard against NaN
-    let simulatedKwh = '0.0100';
-    if (!isNaN(elapsedHours) && elapsedHours >= 0) {
-      simulatedKwh = Math.max(0.01, Math.abs(elapsedHours) * 1.5).toFixed(4);
+    let finalKwh = '0.0100';
+    if (activeSession.total_units && parseFloat(activeSession.total_units) > 0) {
+      finalKwh = activeSession.total_units;
+    } else if (!isNaN(elapsedHours) && elapsedHours >= 0) {
+      finalKwh = Math.max(0.01, Math.abs(elapsedHours) * 1.4).toFixed(4);
     }
 
     try {
-      const res = await api.post(`/sessions/${activeSession.session_id}/end`, { total_units: simulatedKwh });
-      setToastMessage(res.data?.message || `Session ended! Auto-fetched ${simulatedKwh} kWh from Smart Meter.`);
+      const res = await api.post(`/sessions/${activeSession.session_id}/end`, { total_units: finalKwh });
+      setToastMessage(res.data?.message || `Session ended! Billed for ${parseFloat(finalKwh).toFixed(3)} kWh.`);
       setActiveSession(null);
       fetchSessionData(true);
     } catch (err) {
@@ -261,20 +273,24 @@ const SessionPage = () => {
 
   const estimatedCost = () => {
     if (!activeSession) return '0.00';
-    const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    const cost = Math.max(0, hours) * 1.5 * parseFloat(myRoom?.rate_per_unit || 10);
+    let units = 0;
+    if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
+      units = parseFloat(activeSession.total_units);
+    } else {
+      const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
+      units = Math.max(0, hours) * 1.4;
+    }
+    const cost = units * parseFloat(myRoom?.rate_per_unit || 10);
     return cost.toFixed(2);
   };
 
   const powerConsumption = () => {
     if (!activeSession) return '0.000';
     if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
-      // Use real telemetry if available
       return parseFloat(activeSession.total_units).toFixed(3);
     }
-    // Fallback to time-based estimation
     const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    return (Math.max(0, hours) * 1.5).toFixed(3);
+    return (Math.max(0, hours) * 1.4).toFixed(3);
   };
 
   const getBookingDetail = () => {
@@ -594,7 +610,7 @@ const SessionPage = () => {
                           </div>
 
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Consumption</p>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Consumption (₹{myRoom.rate_per_unit}/unit)</p>
                             <div className="text-xl font-headline font-bold text-white flex items-baseline gap-2">
                               {powerConsumption()} <span className="text-sm text-slate-400">kWh</span>
                             </div>
@@ -684,7 +700,7 @@ const SessionPage = () => {
           )}
 
           {/* ── Session History Table ── */}
-          <section className="table-section glass-card" style={{ marginTop: '24px' }}>
+          <section id="history" className="table-section glass-card" style={{ marginTop: '24px' }}>
             <div className="table-header">
               <h2 className="section-heading">All Session History</h2>
             </div>

@@ -662,7 +662,7 @@ const rejectLeave = async ({ approver_id, session_id, leaving_u_id }) => {
 //   3. UPDATE wallets (deduct balance, update total_spent)
 //   4. INSERT wallet_transactions (one per billed participant)
 //
-const endSession = async ({ u_id, session_id, total_units }) => {
+const endSession = async ({ u_id, role, session_id, total_units }) => {
   // Fetch session
   const sessResult = await db.query(
     `SELECT s.*, r.rate_per_unit AS room_rate
@@ -675,12 +675,27 @@ const endSession = async ({ u_id, session_id, total_units }) => {
 
   const session = sessResult.rows[0];
 
-  // Any active participant (or the creator) can end the session
+  if (role === 'admin') {
+    total_units = session.total_units || 0;
+  }
+
+  // Fallback: If total_units is falsy or 0, compute simulated kWh based on elapsed time
+  if (!total_units || parseFloat(total_units) === 0) {
+    if (session.total_units && parseFloat(session.total_units) > 0) {
+      total_units = session.total_units;
+    } else {
+      const startTime = new Date(session.start_time).getTime();
+      const elapsedHours = (new Date().getTime() - startTime) / (1000 * 60 * 60);
+      total_units = Math.max(0.01, elapsedHours * 1.4).toFixed(4);
+    }
+  }
+
+  // Any active participant (or the creator, or admin) can end the session
   const isParticipantResult = await db.query(
     `SELECT status FROM session_participants WHERE session_id = $1 AND u_id = $2 AND status = 'accepted' AND left_at IS NULL`,
     [session_id, u_id]
   );
-  if (session.created_by !== u_id && isParticipantResult.rows.length === 0) {
+  if (role !== 'admin' && session.created_by !== u_id && isParticipantResult.rows.length === 0) {
     throw createError(403, 'Only active session participants can end the session.');
   }
   if (session.status !== 'active') {

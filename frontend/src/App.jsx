@@ -3,7 +3,8 @@
 // Application Root — Routes, Auth Provider, Navigation
 // =============================================================================
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { GuestRoute, ProtectedRoute, AdminRoute, StudentRoute } from './components/ProtectedRoute';
 
@@ -33,11 +34,23 @@ const ComingSoon = ({ title }) => (
   </div>
 );
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (!window.location.hash) {
+      window.scrollTo(0, 0);
+    }
+  }, [pathname]);
+
+  return null;
+};
 
 const App = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           {/* ── Root redirect ── */}
           <Route path="/" element={<Navigate to="/login" replace />} />

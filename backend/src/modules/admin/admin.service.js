@@ -435,6 +435,105 @@ const getTransactions = async ({ admin, page = 1, limit = 7 }) => {
   };
 };
 
+// =============================================================================
+// Admin Room Management Settings (Modal)
+// =============================================================================
+
+const getRoomDetails = async ({ admin, room_id }) => {
+  assertAdmin(admin);
+
+  const roomResult = await db.query(
+    `SELECT * FROM rooms WHERE r_id = $1 AND hostel_id = $2 LIMIT 1`,
+    [room_id, admin.hostel_id]
+  );
+  if (roomResult.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
+  const room = roomResult.rows[0];
+
+  const membersResult = await db.query(
+    `SELECT u.u_id, u.name, u.email, u.mobile, rm.role, rm.joined_at
+     FROM room_members rm
+     JOIN users u ON u.u_id = rm.u_id
+     WHERE rm.r_id = $1 AND rm.left_at IS NULL
+     ORDER BY rm.joined_at ASC`,
+    [room_id]
+  );
+
+  return { room, members: membersResult.rows };
+};
+
+const removeMemberFromRoom = async ({ admin, room_id, u_id }) => {
+  assertAdmin(admin);
+
+  const roomCheck = await db.query(`SELECT r_id FROM rooms WHERE r_id = $1 AND hostel_id = $2`, [room_id, admin.hostel_id]);
+  if (roomCheck.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
+
+  const memberResult = await db.query(`SELECT rm_id, role FROM room_members WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`, [room_id, u_id]);
+  if (memberResult.rows.length === 0) throw createError(404, 'User is not an active member of this room.');
+  const { role } = memberResult.rows[0];
+
+  const activeSessionCheck = await db.query(
+    `SELECT sp.sp_id FROM session_participants sp
+     JOIN sessions s ON s.session_id = sp.session_id
+     WHERE sp.u_id = $1 AND s.r_id = $2 AND s.status = 'active' AND sp.status = 'accepted' AND sp.left_at IS NULL LIMIT 1`,
+    [u_id, room_id]
+  );
+  if (activeSessionCheck.rows.length > 0) throw createError(409, 'Cannot remove user while they are participating in an active session. End the session first.');
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(`UPDATE room_members SET left_at = NOW() WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`, [room_id, u_id]);
+
+    if (role === 'owner') {
+      const remainingResult = await client.query(`SELECT u_id FROM room_members WHERE r_id = $1 AND left_at IS NULL ORDER BY joined_at ASC LIMIT 1`, [room_id]);
+      if (remainingResult.rows.length > 0) {
+        await client.query(`UPDATE room_members SET role = 'owner' WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`, [room_id, remainingResult.rows[0].u_id]);
+      } else {
+        await client.query(`UPDATE rooms SET is_active = FALSE WHERE r_id = $1`, [room_id]);
+      }
+    }
+    await client.query('COMMIT');
+    return { message: 'Successfully removed member from the room.' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+const inviteStudentToRoom = async ({ admin, room_id, identifier }) => {
+  assertAdmin(admin);
+
+  const roomCheck = await db.query(`SELECT r_id, capacity FROM rooms WHERE r_id = $1 AND hostel_id = $2`, [room_id, admin.hostel_id]);
+  if (roomCheck.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
+  const room = roomCheck.rows[0];
+
+  const inviteeResult = await db.query(`SELECT u_id, name, email, hostel_id FROM users WHERE email = $1 OR mobile = $1 LIMIT 1`, [identifier.toLowerCase()]);
+  if (inviteeResult.rows.length === 0) throw createError(404, 'No registered user found with that email or mobile number.');
+  const invitee = inviteeResult.rows[0];
+
+  const existingMembership = await db.query(`SELECT r.room_no FROM room_members rm JOIN rooms r ON r.r_id = rm.r_id WHERE rm.u_id = $1 AND rm.left_at IS NULL AND r.is_active = TRUE LIMIT 1`, [invitee.u_id]);
+  if (existingMembership.rows.length > 0) throw createError(409, `${invitee.name} is already an active member of Room ${existingMembership.rows[0].room_no}.`);
+
+  const countResult = await db.query(`SELECT COUNT(*) as cnt FROM room_members WHERE r_id = $1 AND left_at IS NULL`, [room_id]);
+  if (parseInt(countResult.rows[0].cnt) >= parseInt(room.capacity)) throw createError(409, 'Room is full.');
+
+  const existingInvite = await db.query(`SELECT status FROM room_invitations WHERE room_id = $1 AND sent_to = $2`, [room_id, invitee.u_id]);
+  if (existingInvite.rows.length > 0) {
+    if (existingInvite.rows[0].status === 'pending') throw createError(409, `${invitee.name} already has a pending invitation for this room.`);
+    await db.query(`DELETE FROM room_invitations WHERE room_id = $1 AND sent_to = $2`, [room_id, invitee.u_id]);
+  }
+
+  await db.query(
+    `INSERT INTO room_invitations (room_id, sent_by, sent_to, expires_at) VALUES ($1, $2, $3, NOW() + INTERVAL '48 hours')`,
+    [room_id, admin.u_id, invitee.u_id]
+  );
+
+  return { message: `Invitation sent to ${invitee.name}.` };
+};
+
 module.exports = {
   rechargeWallet,
   deductWallet,
@@ -444,4 +543,7 @@ module.exports = {
   getDashboardOverview,
   getReports,
   getTransactions,
+  getRoomDetails,
+  removeMemberFromRoom,
+  inviteStudentToRoom,
 };

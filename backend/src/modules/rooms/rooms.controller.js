@@ -19,16 +19,7 @@ const handleValidationErrors = (req, res) => {
   return false;
 };
 
-// GET /api/v1/rooms/hostels
-// Public — lists available hostels for the room creation form
-const listHostels = async (req, res, next) => {
-  try {
-    const hostels = await roomsService.listHostels();
-    res.status(200).json({ success: true, data: { hostels } });
-  } catch (err) {
-    next(err);
-  }
-};
+
 
 // POST /api/v1/rooms
 // Protected — student creates a new room and becomes its owner
@@ -36,11 +27,11 @@ const createRoom = async (req, res, next) => {
   try {
     if (handleValidationErrors(req, res)) return;
 
-    const { hostel_id, room_no, room_name, capacity, rate_per_unit } = req.body;
+    const { hostel_code, room_no, room_name, capacity, rate_per_unit } = req.body;
 
     const room = await roomsService.createRoom({
       u_id: req.user.u_id,
-      hostel_id,
+      hostel_code,
       room_no,
       room_name,
       capacity,
@@ -156,7 +147,6 @@ const leaveRoom = async (req, res, next) => {
 };
 
 module.exports = {
-  listHostels,
   createRoom,
   getMyRoom,
   inviteRoommate,

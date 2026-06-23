@@ -23,9 +23,9 @@ const router = express.Router();
 // ─── Validation Rules ─────────────────────────────────────────────────────
 
 const createRoomValidation = [
-  body('hostel_id')
-    .notEmpty().withMessage('hostel_id is required.')
-    .isInt({ min: 1 }).withMessage('hostel_id must be a positive integer.'),
+  body('hostel_code')
+    .notEmpty().withMessage('Hostel Code is required.')
+    .isString().withMessage('Hostel Code must be a string.'),
 
   body('room_no')
     .trim()
@@ -58,9 +58,6 @@ const invitationActionValidation = [
 ];
 
 // ─── Routes ───────────────────────────────────────────────────────────────
-
-// GET /api/v1/rooms/hostels — public, no auth needed
-router.get('/hostels', controller.listHostels);
 
 // NOTE: /my and /invitations defined BEFORE /:id to avoid route collision
 

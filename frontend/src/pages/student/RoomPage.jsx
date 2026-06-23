@@ -22,13 +22,13 @@ const RoomPage = () => {
   const [room, setRoom] = useState(null);
   const [inviteIdentifier, setInviteIdentifier] = useState('');
   const [isInviting, setIsInviting] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // States for State B: No Room
-  const [hostels, setHostels] = useState([]);
   const [invitations, setInvitations] = useState([]);
   
   // New Room Form
-  const [newRoomHostelId, setNewRoomHostelId] = useState('');
+  const [hostelCode, setHostelCode] = useState('');
   const [newRoomNo, setNewRoomNo] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -55,16 +55,8 @@ const RoomPage = () => {
 
   const fetchNoRoomData = async () => {
     try {
-      const [hostelsRes, invRes] = await Promise.all([
-        api.get('/rooms/hostels'),
-        api.get('/rooms/invitations')
-      ]);
-      setHostels(hostelsRes.data.data.hostels || []);
+      const invRes = await api.get('/rooms/invitations');
       setInvitations(invRes.data.data.invitations || []);
-      
-      if (hostelsRes.data.data.hostels?.length > 0) {
-        setNewRoomHostelId(hostelsRes.data.data.hostels[0].hostel_id);
-      }
     } catch (e) {
       console.error(e);
     }
@@ -100,8 +92,12 @@ const RoomPage = () => {
     }
   };
 
-  const handleLeaveRoom = async () => {
-    if (!window.confirm('Are you sure you want to leave this room?')) return;
+  const handleLeaveRoomClick = () => {
+    setShowLeaveConfirm(true);
+  };
+
+  const executeLeaveRoom = async () => {
+    setShowLeaveConfirm(false);
     clearMessages();
     try {
       await api.patch(`/rooms/${room.r_id}/leave`);
@@ -117,14 +113,14 @@ const RoomPage = () => {
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     clearMessages();
-    if (!newRoomHostelId || !newRoomNo || !newRoomCapacity) {
+    if (!hostelCode || !newRoomNo || !newRoomCapacity) {
       setError('Please fill all fields to create a room.');
       return;
     }
     setIsCreating(true);
     try {
       const res = await api.post('/rooms', {
-        hostel_id: parseInt(newRoomHostelId, 10),
+        hostel_code: hostelCode.trim(),
         room_no: newRoomNo,
         room_name: `Room ${newRoomNo}`,
         capacity: parseInt(newRoomCapacity, 10),
@@ -250,11 +246,27 @@ const RoomPage = () => {
 
             {/* Leave Room */}
             <div style={{marginTop: '16px'}}>
-              <button className="btn-danger-outline" onClick={handleLeaveRoom}>
+              <button className="btn-danger-outline" onClick={handleLeaveRoomClick}>
                 <span className="material-symbols-outlined">logout</span>
                 Leave Room
               </button>
             </div>
+
+            {/* Custom Confirm Modal for Leave Room */}
+            {showLeaveConfirm && (
+              <div className="modal-overlay">
+                <div className="modal-content glass-card">
+                  <h3 className="modal-title">Leave Room?</h3>
+                  <p className="modal-body" style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px' }}>
+                    Are you sure you want to leave this room? You will lose access to it and will need an invitation to rejoin.
+                  </p>
+                  <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    <button className="btn-outline" onClick={() => setShowLeaveConfirm(false)}>Cancel</button>
+                    <button className="btn-danger" onClick={executeLeaveRoom}>Yes, Leave</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         ) : (
           /* SECTION 2: STATE B (NO ROOM) */
@@ -309,13 +321,15 @@ const RoomPage = () => {
               </div>
               <form className="room-form" onSubmit={handleCreateRoom}>
                 <div className="form-group-col">
-                  <label>Select Hostel</label>
-                  <select className="input-field" value={newRoomHostelId} onChange={e => setNewRoomHostelId(e.target.value)} required>
-                    <option value="" disabled>Select a hostel</option>
-                    {hostels.map(h => (
-                      <option key={h.hostel_id} value={h.hostel_id}>{h.name}</option>
-                    ))}
-                  </select>
+                  <label>Secret Hostel Code</label>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="Enter code provided by Admin (e.g. ABC-2026)" 
+                    value={hostelCode} 
+                    onChange={e => setHostelCode(e.target.value)} 
+                    required 
+                  />
                 </div>
                 <div className="grid-cols-2">
                   <div className="form-group-col">

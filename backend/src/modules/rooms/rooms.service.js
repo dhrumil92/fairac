@@ -28,38 +28,20 @@ const getActiveRoomMembership = async (u_id) => {
 };
 
 // =============================================================================
-// listHostels
-// =============================================================================
-// Returns all available hostels so the student can pick one when creating a room.
-//
-// WHY NEEDED?
-//   Our `rooms` table requires a hostel_id (NOT NULL). The student needs to
-//   know valid hostel IDs before they can create a room. This endpoint gives
-//   them that list. In the frontend, it will be a dropdown.
-//
-const listHostels = async () => {
-  const result = await db.query(
-    `SELECT hostel_id, name, address FROM hostels ORDER BY name`,
-    []
-  );
-  return result.rows;
-};
-
-// =============================================================================
 // createRoom
 // =============================================================================
 // Creates a new room and makes the creator the room OWNER.
 //
 // BUSINESS RULES:
 //   1. Student must NOT already be in an active room (one room at a time)
-//   2. hostel_id must exist (FK validated by DB)
+//   2. hostel_code must be valid
 //   3. room_no must be unique within the hostel (unique constraint on DB)
 //   4. Creator is automatically added to room_members as 'owner'
 //
 // TRANSACTION: rooms INSERT + room_members INSERT must be atomic.
 //   If room is created but owner record fails → orphaned room with no owner.
 //
-const createRoom = async ({ u_id, hostel_id, room_no, room_name, capacity, rate_per_unit }) => {
+const createRoom = async ({ u_id, hostel_code, room_no, room_name, capacity, rate_per_unit }) => {
   // Rule 1: Check if user already has an active room
   const existingMembership = await getActiveRoomMembership(u_id);
   if (existingMembership) {
@@ -69,30 +51,63 @@ const createRoom = async ({ u_id, hostel_id, room_no, room_name, capacity, rate_
     );
   }
 
+  // Look up hostel by secret code
+  const hostelResult = await db.query(
+    `SELECT hostel_id FROM hostels WHERE hostel_code = $1 LIMIT 1`,
+    [hostel_code]
+  );
+
+  if (hostelResult.rows.length === 0) {
+    throw createError(400, 'Invalid Hostel Code. Please check with your Admin.');
+  }
+
+  const hostel_id = hostelResult.rows[0].hostel_id;
+  const norm_room_no = room_no.trim().toUpperCase();
+
+  // Check if room already exists
+  const existingRoomResult = await db.query(
+    `SELECT r_id, is_active FROM rooms WHERE hostel_id = $1 AND room_no = $2 LIMIT 1`,
+    [hostel_id, norm_room_no]
+  );
+
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
 
-    // Insert the room
-    const roomResult = await client.query(
-      `INSERT INTO rooms (hostel_id, created_by, room_no, room_name, capacity, rate_per_unit)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING r_id, room_no, room_name, capacity, rate_per_unit, created_at`,
-      [
-        hostel_id,
-        u_id,
-        room_no.trim().toUpperCase(),  // normalize: "301" or "3a" → "3A"
-        room_name ? room_name.trim() : null,
-        capacity || 4,
-        rate_per_unit || 8.00,
-      ]
-    );
+    let room;
+    if (existingRoomResult.rows.length > 0) {
+      const existingRoom = existingRoomResult.rows[0];
+      if (existingRoom.is_active) {
+        throw createError(409, `Room number "${room_no}" already exists and is currently occupied.`);
+      }
 
-    const room = roomResult.rows[0];
+      // Room exists but is inactive -> CLAIM IT
+      const updateResult = await client.query(
+        `UPDATE rooms 
+         SET is_active = TRUE, created_by = $1, room_name = $2, capacity = $3, rate_per_unit = $4
+         WHERE r_id = $5
+         RETURNING r_id, room_no, room_name, capacity, rate_per_unit, created_at`,
+        [u_id, room_name ? room_name.trim() : null, capacity || 4, rate_per_unit || 8.00, existingRoom.r_id]
+      );
+      room = updateResult.rows[0];
+    } else {
+      // Insert new room
+      const insertResult = await client.query(
+        `INSERT INTO rooms (hostel_id, created_by, room_no, room_name, capacity, rate_per_unit)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING r_id, room_no, room_name, capacity, rate_per_unit, created_at`,
+        [hostel_id, u_id, norm_room_no, room_name ? room_name.trim() : null, capacity || 4, rate_per_unit || 8.00]
+      );
+      room = insertResult.rows[0];
+    }
 
-    // Add creator as OWNER in room_members
+    // Add creator as OWNER in room_members. 
+    // Use UPSERT because the user might be claiming a room they were previously in.
     await client.query(
-      `INSERT INTO room_members (r_id, u_id, role) VALUES ($1, $2, 'owner')`,
+      `INSERT INTO room_members (r_id, u_id, role, joined_at, left_at) 
+       VALUES ($1, $2, 'owner', NOW(), NULL)
+       ON CONFLICT (r_id, u_id) DO UPDATE 
+       SET left_at = NULL, joined_at = NOW(), role = 'owner'`,
       [room.r_id, u_id]
     );
 
@@ -101,10 +116,6 @@ const createRoom = async ({ u_id, hostel_id, room_no, room_name, capacity, rate_
     return room;
   } catch (err) {
     await client.query('ROLLBACK');
-    // Handle unique constraint violation (room_no already exists in this hostel)
-    if (err.code === '23505' && err.constraint === 'uq_rooms_no_per_hostel') {
-      throw createError(409, `Room number "${room_no}" already exists in this hostel.`);
-    }
     throw err;
   } finally {
     client.release();
@@ -193,7 +204,7 @@ const inviteRoommate = async ({ inviter_u_id, room_id, identifier }) => {
 
   // Rule 2 & 3: Find invitee by email or mobile
   const inviteeResult = await db.query(
-    `SELECT u_id, name, email FROM users WHERE email = $1 OR mobile = $1 LIMIT 1`,
+    `SELECT u_id, name, email, hostel_id FROM users WHERE email = $1 OR mobile = $1 LIMIT 1`,
     [identifier.toLowerCase()]
   );
   if (inviteeResult.rows.length === 0) {
@@ -207,13 +218,15 @@ const inviteRoommate = async ({ inviter_u_id, room_id, identifier }) => {
     throw createError(400, 'You cannot invite yourself.');
   }
 
-  // Rule 4: Invitee must not already be an active member of this room
-  const alreadyMember = await db.query(
-    `SELECT rm_id FROM room_members WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`,
-    [room_id, invitee.u_id]
+  // Rule 4: Invitee must not already be an active member of ANY room
+  const alreadyInAnyRoom = await db.query(
+    `SELECT r.room_no FROM room_members rm
+     JOIN rooms r ON r.r_id = rm.r_id
+     WHERE rm.u_id = $1 AND rm.left_at IS NULL AND r.is_active = TRUE LIMIT 1`,
+    [invitee.u_id]
   );
-  if (alreadyMember.rows.length > 0) {
-    throw createError(409, `${invitee.name} is already a member of this room.`);
+  if (alreadyInAnyRoom.rows.length > 0) {
+    throw createError(409, `${invitee.name} is already an active member of Room ${alreadyInAnyRoom.rows[0].room_no}.`);
   }
 
   // Rule 6: Check capacity
@@ -344,9 +357,12 @@ const acceptInvitation = async ({ u_id, invitation_id }) => {
     `SELECT COUNT(*) AS cnt FROM room_members WHERE r_id = $1 AND left_at IS NULL`,
     [invite.room_id]
   );
-  if (parseInt(countResult.rows[0].cnt) >= parseInt(invite.capacity)) {
+  const currentMembersCount = parseInt(countResult.rows[0].cnt);
+  if (currentMembersCount >= parseInt(invite.capacity)) {
     throw createError(409, 'Room is now full. Cannot join.');
   }
+
+  const roleToAssign = currentMembersCount === 0 ? 'owner' : 'member';
 
   // Transaction: mark invitation accepted + add to room_members
   const client = await db.getClient();
@@ -360,14 +376,22 @@ const acceptInvitation = async ({ u_id, invitation_id }) => {
       [invitation_id]
     );
 
+    // If the room was empty, claiming it reactivates it
+    if (currentMembersCount === 0) {
+      await client.query(
+        `UPDATE rooms SET is_active = TRUE, created_by = $1 WHERE r_id = $2`,
+        [u_id, invite.room_id]
+      );
+    }
+
     // If the user was previously in this room, they already have a row.
     // uq_rm_active is a UNIQUE (r_id, u_id) constraint. We must UPSERT to avoid violating it.
     await client.query(
       `INSERT INTO room_members (r_id, u_id, role, joined_at, left_at) 
-       VALUES ($1, $2, 'member', NOW(), NULL)
+       VALUES ($1, $2, $3, NOW(), NULL)
        ON CONFLICT (r_id, u_id) DO UPDATE 
-       SET left_at = NULL, joined_at = NOW(), role = 'member'`,
-      [invite.room_id, u_id]
+       SET left_at = NULL, joined_at = NOW(), role = $3`,
+      [invite.room_id, u_id, roleToAssign]
     );
 
     await client.query('COMMIT');
@@ -514,7 +538,6 @@ const leaveRoom = async ({ u_id, room_id }) => {
 };
 
 module.exports = {
-  listHostels,
   createRoom,
   getMyRoom,
   inviteRoommate,

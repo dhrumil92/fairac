@@ -36,6 +36,19 @@ const deductValidation = [
     .withMessage('A reason/note is mandatory for deductions.'),
 ];
 
+const removeMemberValidation = [
+  body('u_id')
+    .notEmpty().withMessage('User ID is required.')
+    .isInt({ min: 1 }).withMessage('User ID must be a positive integer.'),
+];
+
+const inviteValidation = [
+  body('student_identifier')
+    .trim()
+    .notEmpty()
+    .withMessage('Student identifier (email or mobile) is required.'),
+];
+
 // ─── Routes ───────────────────────────────────────────────────────────────
 
 // GET /api/v1/admin/dashboard — overview stats
@@ -61,5 +74,14 @@ router.post('/recharge', walletActionValidation, controller.rechargeWallet);
 
 // POST /api/v1/admin/deduct — manual deduction (note required)
 router.post('/deduct', deductValidation, controller.deductWallet);
+
+// GET /api/v1/admin/rooms/:id — get room details
+router.get('/rooms/:id', controller.getRoomDetails);
+
+// PATCH /api/v1/admin/rooms/:id/remove-member — remove a member from a room
+router.patch('/rooms/:id/remove-member', removeMemberValidation, controller.removeMemberFromRoom);
+
+// POST /api/v1/admin/rooms/:id/invite — invite a student to a room
+router.post('/rooms/:id/invite', inviteValidation, controller.inviteStudentToRoom);
 
 module.exports = router;

@@ -242,6 +242,16 @@ const ProfilePage = () => {
                 </div>
               </div>
 
+              {/* Hostel Field (Not editable) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Hostel Name</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
+                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>
+                    {myRoom ? myRoom.hostel_name : 'Not assigned'}
+                  </p>
+                </div>
+              </div>
+
               {/* Room Field (Not editable) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Room Number</label>
@@ -249,15 +259,6 @@ const ProfilePage = () => {
                   <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>
                     {myRoom ? (myRoom.room_name || myRoom.room_no) : 'Not assigned'}
                   </p>
-                </div>
-              </div>
-
-              {/* Status Field (Not editable) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Account Status</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isEditing ? '#475569' : '#00D4AA' }}></div>
-                  <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>Active</p>
                 </div>
               </div>
 

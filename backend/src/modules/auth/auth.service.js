@@ -168,9 +168,10 @@ const loginUser = async ({ identifier, password }) => {
   // `identifier` is whatever the user typed — could be email or mobile number.
   // We check both columns in one query.
   const userResult = await db.query(
-    `SELECT u_id, name, email, mobile, password_hash, role, hostel_id, is_active
-     FROM users
-     WHERE email = $1 OR mobile = $1
+    `SELECT u.u_id, u.name, u.email, u.mobile, u.password_hash, u.role, u.hostel_id, u.is_active, h.name AS hostel_name
+     FROM users u
+     LEFT JOIN hostels h ON h.hostel_id = u.hostel_id
+     WHERE u.email = $1 OR u.mobile = $1
      LIMIT 1`,
     [identifier.toLowerCase()]
   );
@@ -202,12 +203,13 @@ const loginUser = async ({ identifier, password }) => {
 
   return {
     user: {
-      u_id:      user.u_id,
-      name:      user.name,
-      email:     user.email,
-      mobile:    user.mobile,
-      role:      user.role,
-      hostel_id: user.hostel_id,
+      u_id:        user.u_id,
+      name:        user.name,
+      email:       user.email,
+      mobile:      user.mobile,
+      role:        user.role,
+      hostel_id:   user.hostel_id,
+      hostel_name: user.hostel_name,
     },
     token,
   };
@@ -224,8 +226,10 @@ const loginUser = async ({ identifier, password }) => {
 //
 const getMe = async (u_id) => {
   const result = await db.query(
-    `SELECT u_id, name, email, mobile, role, hostel_id, is_active, created_at
-     FROM users WHERE u_id = $1`,
+    `SELECT u.u_id, u.name, u.email, u.mobile, u.role, u.hostel_id, u.is_active, u.created_at, h.name AS hostel_name
+     FROM users u
+     LEFT JOIN hostels h ON h.hostel_id = u.hostel_id
+     WHERE u.u_id = $1`,
     [u_id]
   );
 

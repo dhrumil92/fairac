@@ -77,6 +77,7 @@ const endSession = async (req, res, next) => {
     if (handleValidationErrors(req, res)) return;
     const result = await sessionsService.endSession({
       u_id:        req.user.u_id,
+      role:        req.user.role,
       session_id:  parseInt(req.params.id, 10),
       total_units: req.body.total_units,
     });
