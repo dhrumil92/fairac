@@ -26,8 +26,11 @@ long activeSessionId = -1;
 float simulatedKwh = 0.0;
 float simulatedPowerW = 1400.0; // 1.4 kW AC
 
+const int WIFI_LED_PIN = 2; // Usually 2 on ESP32 DevKit V1. If no light, try 1 or 22.
+
 void setup() {
   Serial.begin(115200);
+  pinMode(WIFI_LED_PIN, OUTPUT);
   delay(1000);
 
   Serial.println("\n=================================");
@@ -38,10 +41,15 @@ void setup() {
   Serial.print("Connecting to WiFi: ");
   Serial.println(ssid);
 
+  bool ledState = false;
   while (WiFi.status() != WL_CONNECTED) {
+    ledState = !ledState;
+    digitalWrite(WIFI_LED_PIN, ledState ? HIGH : LOW); // Blink while connecting
     delay(500);
     Serial.print(".");
   }
+
+  digitalWrite(WIFI_LED_PIN, HIGH); // Solid ON when connected
 
   Serial.println("\nWiFi Connected!");
   Serial.print("IP Address: ");
@@ -60,6 +68,14 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
+  // WiFi LED Status Indicator
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(WIFI_LED_PIN, HIGH); // Solid Blue
+  } else {
+    // Blink Blue rapidly if disconnected
+    digitalWrite(WIFI_LED_PIN, (currentMillis / 250) % 2 ? HIGH : LOW); 
+  }
+
   // 1. Heartbeat Logic
   if (currentMillis - previousHeartbeatMillis >= heartbeatInterval) {
     previousHeartbeatMillis = currentMillis;
@@ -71,11 +87,17 @@ void loop() {
     previousTelemetryMillis = currentMillis;
     
     // Simulate consuming power (1.4 kW for 10 seconds)
-    // Energy (kWh) = Power (kW) * Time (hours)
     float timeHours = (telemetryInterval / 1000.0) / 3600.0;
+    
+    // ACCUMULATE locally in case WiFi is down
     simulatedKwh += (simulatedPowerW / 1000.0) * timeHours;
     
-    sendTelemetry();
+    if (WiFi.status() == WL_CONNECTED) {
+      bool success = sendTelemetry();
+      if (success) {
+        simulatedKwh = 0.0; // Reset only after successfully sending to backend!
+      }
+    }
   }
 }
 
@@ -130,8 +152,8 @@ void sendHeartbeat() {
   http.end();
 }
 
-void sendTelemetry() {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool sendTelemetry() {
+  if (WiFi.status() != WL_CONNECTED) return false;
 
   HTTPClient http;
   String url = baseUrl + "/telemetry";
@@ -152,4 +174,6 @@ void sendTelemetry() {
 
   int httpResponseCode = http.POST(payload);
   http.end();
+  
+  return (httpResponseCode > 0);
 }
