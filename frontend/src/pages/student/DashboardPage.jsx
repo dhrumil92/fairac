@@ -171,7 +171,7 @@ const DashboardPage = () => {
         const fetchSilently = async () => {
           try {
             const res = await api.get('/sessions/active');
-            const fetchedSession = res.data?.data?.session;
+            const fetchedSession = res.data?.data?.session || res.data?.data;
             if (fetchedSession?.status !== 'active') {
               // Backend ended the session, refresh dashboard
               fetchDashboardData();
