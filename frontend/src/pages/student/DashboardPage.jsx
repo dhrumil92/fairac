@@ -133,13 +133,28 @@ const DashboardPage = () => {
 
   const handleLeaveAction = async (e, leaving_u_id, action) => {
     e.stopPropagation();
-    setError('');
     try {
-      const res = await api.post(`/sessions/participants/leave/${action}`, { session_id: activeSession.session_id, leaving_u_id });
-      setToastMessage(res.data?.message || `Leave request ${action}ed.`);
+      const endpoint = action === 'approve' ? '/sessions/participants/leave/approve' : '/sessions/participants/leave/reject';
+      await api.post(endpoint, { session_id: activeSession.session_id, leaving_u_id });
+      setToastMessage(`Successfully ${action}d leave request.`);
       fetchDashboardData();
     } catch (err) {
       setError(err.response?.data?.message || `Failed to ${action} leave request.`);
+    }
+  };
+
+  const handleQuickStartSession = async () => {
+    if (!roomInfo) {
+      setError('You must join a room first.');
+      return;
+    }
+    try {
+      const payload = { r_id: roomInfo.r_id, session_type: 'duration', target_value: 1.5 };
+      const res = await api.post('/sessions/start', payload);
+      setToastMessage(res.data?.message || 'Session started successfully!');
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to start session.');
     }
   };
 
@@ -224,25 +239,28 @@ const DashboardPage = () => {
     <div className="page-layout">
       <Sidebar />
 
-      <main className="page-main">
-        {/* ── Top Header ── */}
-        <header className="page-header">
-          <div>
-            <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">
+      <main className="page-main" style={{ padding: '0' }}>
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">Dashboard</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">
               {greeting()}, {firstName} 👋 &nbsp;<span className="divider">|</span>&nbsp; {today}
             </p>
           </div>
-          <div className="header-actions">
-            <button className="icon-btn" title="Notifications">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <Link to="/sessions" className="btn-primary-sm" id="new-session-btn">
-              <span className="material-symbols-outlined">bolt</span>
+          <div className="flex items-center gap-6">
+            <Link to="/sessions" className="btn-primary-sm flex items-center gap-2" style={{ padding: '8px 16px', textDecoration: 'none' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span>
               New Session
+            </Link>
+            <Link to="/profile" className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 cursor-pointer rounded-full border border-white/10 transition-colors" style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-sm text-slate-400">person</span>
+              <span className="text-sm font-medium text-white">{user?.name}</span>
             </Link>
           </div>
         </header>
+
+        <div style={{ padding: '0 40px 40px' }}>
 
         {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
         {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
@@ -439,6 +457,7 @@ const DashboardPage = () => {
                 value={wallet ? `₹${parseFloat(wallet.balance).toFixed(2)}` : '₹0.00'}
                 badge={wallet ? `₹${parseFloat(wallet.total_recharged || 0).toFixed(0)} total` : 'No wallet'}
                 badgeColor="#00D4AA"
+                onClick={() => navigate('/wallet')}
               />
               <StatCard
                 icon="receipt_long"
@@ -448,6 +467,13 @@ const DashboardPage = () => {
                 value={monthlyStats ? `₹${parseFloat(monthlyStats.cost || 0).toFixed(2)}` : '₹0.00'}
                 badge="AC billing"
                 badgeColor="#6C63FF"
+                onClick={() => {
+                  navigate('/wallet#ledger');
+                  setTimeout(() => {
+                    const el = document.getElementById('ledger');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }}
               />
               <StatCard
                 icon="lan"
@@ -527,10 +553,16 @@ const DashboardPage = () => {
                 </div>
                 <h3>No Active Session</h3>
                 <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
-                <Link to="/sessions" className="btn-gradient" id="start-session-btn">
-                  <span className="material-symbols-outlined">bolt</span>
-                  Start a Session
-                </Link>
+                <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={handleQuickStartSession} style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: '#00D4AA', color: '#0F1729', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'} onMouseOut={(e) => e.currentTarget.style.opacity = '1'}>
+                    <span className="material-symbols-outlined">play_arrow</span>
+                    Quick Start (1.5 hr)
+                  </button>
+                  <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined">tune</span>
+                    Advanced Options
+                  </Link>
+                </div>
               </div>
             )}
           </div>
@@ -640,6 +672,7 @@ const DashboardPage = () => {
             </div>
           )}
         </section>
+        </div>
       </main>
     </div>
   );

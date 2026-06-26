@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -60,6 +61,15 @@ const WalletPage = () => {
     // eslint-disable-next-line
   }, [page, filterType]);
 
+  useEffect(() => {
+    if (window.location.hash === '#ledger' && !loading) {
+      const el = document.getElementById('ledger');
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    }
+  }, [loading]);
+
   const handleAddFundsClick = () => {
     setToastMessage('Please contact the Hostel Admin via UPI or Cash to recharge your wallet.');
   };
@@ -69,14 +79,22 @@ const WalletPage = () => {
       <Sidebar />
       {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
       {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
-      <main className="page-main">
-        <header className="page-header">
-          <div>
-            <h1 className="page-title">My Wallet</h1>
-            <p className="page-subtitle">Manage your funds and view transaction history</p>
+      <main className="page-main" style={{ padding: '0' }}>
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">My Wallet</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">Manage your funds and view transaction history</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <Link to="/profile" className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 cursor-pointer rounded-full border border-white/10 transition-colors" style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-sm text-slate-400">person</span>
+              <span className="text-sm font-medium text-white">{user?.name}</span>
+            </Link>
           </div>
         </header>
 
+        <div style={{ padding: '0 40px 40px' }}>
         {/* ── Top Metrics Section ── */}
         <section className="stats-grid" style={{ marginBottom: '32px' }}>
           {loading && !wallet ? (
@@ -128,7 +146,7 @@ const WalletPage = () => {
         </section>
 
         {/* ── Transaction History Table ── */}
-        <section className="table-section glass-card">
+        <section id="ledger" className="table-section glass-card">
           <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="section-heading">Transaction Ledger</h2>
             <div className="relative">
@@ -227,6 +245,7 @@ const WalletPage = () => {
             </div>
           )}
         </section>
+        </div>
       </main>
     </div>
   );

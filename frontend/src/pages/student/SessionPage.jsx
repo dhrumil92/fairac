@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
@@ -308,26 +309,25 @@ const SessionPage = () => {
   const glowPrimary = "shadow-[0_0_20px_rgba(108,99,255,0.3)]";
 
   return (
-    <div className="font-body text-sm bg-[#0F1729] text-[#F8FAFC] min-h-screen flex">
+    <div className="font-body bg-[#0F1729] text-[#F8FAFC] min-h-screen flex">
       <Sidebar />
 
 
-      <main className="flex-1 min-h-screen relative md:ml-64">
+      <main className="flex-1 min-h-screen relative md:ml-64 text-sm">
         {/* Top Navigation Bar */}
         <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10">
           <div className="flex items-center gap-4">
             <h2 className="font-headline text-2xl font-bold text-white tracking-tight">Sessions</h2>
           </div>
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
+            <Link to="/wallet" className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 cursor-pointer rounded-full border border-white/10 transition-colors">
               <span className="material-symbols-outlined text-[#00D4AA] text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
               <span className="text-xs font-semibold text-white">₹{wallet?.balance !== undefined ? parseFloat(wallet.balance).toFixed(2) : '0.00'}</span>
-            </div>
-            <div className="flex items-center gap-4 text-slate-400">
-              <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center font-bold text-white overflow-hidden">
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
-            </div>
+            </Link>
+            <Link to="/profile" className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 cursor-pointer rounded-full border border-white/10 transition-colors">
+              <span className="material-symbols-outlined text-sm text-slate-400">person</span>
+              <span className="text-sm font-medium text-white">{user?.name}</span>
+            </Link>
           </div>
         </header>
 
