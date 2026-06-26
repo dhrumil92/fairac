@@ -1,0 +1,17 @@
+download receipt option after status column in all session history
+schedule ac session booking
+manage session bookings
+forgot password
+piyush sir:
+payment gateway
+sent total amount at the end of every month
+cloud cost
+meter total cost
+
+
+
+business perspective
+build another website describing the problem and product
+virtual demo should be there
+in each meter there should be qr or website url mentioned along with brand name
+
