@@ -67,10 +67,10 @@ const register = async (req, res, next) => {
     if (handleValidationErrors(req, res)) return;
 
     // Step 2: Extract validated data from request body
-    const { name, email, mobile, password } = req.body;
+    const { name, email, mobile, password, secret_code } = req.body;
 
     // Step 3: Call service (all business logic lives there)
-    const result = await authService.registerStudent({ name, email, mobile, password });
+    const result = await authService.registerStudent({ name, email, mobile, password, secret_code });
 
     // Step 4: Send success response
     // 201 = "Created" — more accurate than 200 when a new resource is created
@@ -166,4 +166,45 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, updateProfile };
+// =============================================================================
+// leaveHostel
+// =============================================================================
+const leaveHostel = async (req, res, next) => {
+  try {
+    const user = await authService.leaveHostel(req.user.u_id);
+    res.status(200).json({
+      success: true,
+      message: 'You have left the hostel successfully.',
+      data: { user },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// =============================================================================
+// joinHostel
+// =============================================================================
+const joinHostel = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { secret_code } = req.body;
+    const user = await authService.joinHostel(req.user.u_id, secret_code);
+    res.status(200).json({
+      success: true,
+      message: 'Hostel joined successfully.',
+      data: { user },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateProfile,
+  leaveHostel,
+  joinHostel
+};

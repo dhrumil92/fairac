@@ -33,8 +33,28 @@ const Skeleton = ({ className }) => (
 );
 
 const DashboardPage = () => {
-  const { user } = useAuth();
+  const { user, fetchMe } = useAuth();
   const navigate = useNavigate();
+  
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState('');
+
+  const handleJoinHostel = async (e) => {
+    e.preventDefault();
+    if (!joinCode) return;
+    setIsJoining(true);
+    setJoinError('');
+    try {
+      await api.post('/auth/join-hostel', { secret_code: joinCode });
+      await fetchMe();
+      setToastMessage('Hostel joined successfully!');
+    } catch (err) {
+      setJoinError(err.response?.data?.message || 'Failed to join hostel.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   const [wallet, setWallet]           = useState(null);
   const [monthlyStats, setMonthly]    = useState(null);
@@ -234,6 +254,48 @@ const DashboardPage = () => {
   };
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
+
+  if (!user?.hostel_id) {
+    return (
+      <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+        <Sidebar />
+        <main className="page-main" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-card" style={{ maxWidth: '500px', width: '100%', padding: '40px', borderRadius: '24px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '16px', backgroundColor: 'rgba(108, 99, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', color: '#6C63FF' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>apartment</span>
+            </div>
+            <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>Join a Hostel</h1>
+            <p style={{ color: '#94A3B8', marginBottom: '32px' }}>You are not currently assigned to any hostel. Enter a Secret Hostel Code to join one and start using FairAC.</p>
+            
+            {joinError && (
+              <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', padding: '12px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                {joinError}
+              </div>
+            )}
+            
+            <form onSubmit={handleJoinHostel} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Enter Secret Hostel Code" 
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(108, 99, 255, 0.3)', color: 'white', fontSize: '16px', textAlign: 'center', outline: 'none' }}
+                required
+              />
+              <button 
+                type="submit"
+                disabled={isJoining || !joinCode}
+                style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#6C63FF', color: 'white', fontWeight: 'bold', border: 'none', cursor: isJoining ? 'not-allowed' : 'pointer', fontSize: '16px', opacity: isJoining ? 0.7 : 1 }}
+              >
+                {isJoining ? 'Joining...' : 'Join Hostel'}
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="page-layout">

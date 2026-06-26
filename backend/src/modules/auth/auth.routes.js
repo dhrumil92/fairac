@@ -64,6 +64,13 @@ const registerValidation = [
     .withMessage('Password must contain at least one uppercase letter.')
     .matches(/[0-9]/)
     .withMessage('Password must contain at least one number.'),
+
+  body('secret_code')
+    .trim()
+    .notEmpty()
+    .withMessage('Secret Hostel Code is required.')
+    .isLength({ min: 4, max: 20 })
+    .withMessage('Secret Hostel Code must be between 4 and 20 characters.'),
 ];
 
 const updateProfileValidation = [
@@ -120,5 +127,14 @@ router.get('/me', authenticate, controller.getMe);
 // PUT /api/v1/auth/profile
 // Protected route — updates the user's profile details
 router.put('/profile', authenticate, updateProfileValidation, controller.updateProfile);
+
+// POST /api/v1/auth/leave-hostel
+router.post('/leave-hostel', authenticate, controller.leaveHostel);
+
+// POST /api/v1/auth/join-hostel
+const joinHostelValidation = [
+  body('secret_code').trim().notEmpty().withMessage('Secret Hostel Code is required.')
+];
+router.post('/join-hostel', authenticate, joinHostelValidation, controller.joinHostel);
 
 module.exports = router;

@@ -24,6 +24,7 @@
 // =============================================================================
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -39,6 +40,15 @@ export const AuthProvider = ({ children }) => {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+      // Force sync with backend on load to overwrite any stale mock data in localStorage
+      api.get('/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } })
+        .then(res => {
+          if (res.data.success) {
+            setUser(res.data.data.user);
+            localStorage.setItem('fairac_user', JSON.stringify(res.data.data.user));
+          }
+        })
+        .catch(err => console.error('Silent sync failed:', err));
     }
     setIsLoading(false);
   }, []);
@@ -48,6 +58,17 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('fairac_user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
+  };
+
+  const fetchMe = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      if (response.data.success) {
+        updateUserLocally(response.data.data.user);
+      }
+    } catch (err) {
+      console.error('Failed to fetchMe:', err);
+    }
   };
 
   const logout = () => {
@@ -67,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   const isStudent = user?.role === 'student';
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isAdmin, isStudent, login, logout, updateUserLocally }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isAdmin, isStudent, login, logout, updateUserLocally, fetchMe }}>
       {children}
     </AuthContext.Provider>
   );

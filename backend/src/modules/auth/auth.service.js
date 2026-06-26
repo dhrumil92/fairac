@@ -73,7 +73,21 @@ const generateToken = (user) => {
 //   transaction would hold the DB client longer than needed. We hash first,
 //   then open the transaction — keeps the transaction short and fast.
 //
-const registerStudent = async ({ name, email, mobile, password }) => {
+const registerStudent = async ({ name, email, mobile, password, secret_code }) => {
+  if (!secret_code) {
+    throw createError(400, 'Secret Hostel Code is required.');
+  }
+  
+  // Find hostel by secret code
+  const hostelResult = await db.query(
+    `SELECT hostel_id FROM hostels WHERE hostel_code = $1 LIMIT 1`,
+    [secret_code]
+  );
+  if (hostelResult.rows.length === 0) {
+    throw createError(400, 'Invalid Secret Hostel Code.');
+  }
+  const hostel_id = hostelResult.rows[0].hostel_id;
+
   // ── Step 1 & 2: Uniqueness checks ────────────────────────────────────────
   // We run a single query that checks both email and mobile at once.
   // More efficient than two separate queries.
@@ -104,10 +118,10 @@ const registerStudent = async ({ name, email, mobile, password }) => {
 
     // Insert the new student
     const userResult = await client.query(
-      `INSERT INTO users (name, email, mobile, password_hash, role)
-       VALUES ($1, $2, $3, $4, 'student')
+      `INSERT INTO users (name, email, mobile, password_hash, role, hostel_id)
+       VALUES ($1, $2, $3, $4, 'student', $5)
        RETURNING u_id, name, email, mobile, role, hostel_id, created_at`,
-      [name.trim(), email.toLowerCase(), mobile, passwordHash]
+      [name.trim(), email.toLowerCase(), mobile, passwordHash, hostel_id]
     );
 
     const newUser = userResult.rows[0];
@@ -278,9 +292,101 @@ const updateProfile = async (u_id, { name, email, mobile }) => {
   };
 };
 
+// =============================================================================
+// leaveHostel
+// =============================================================================
+const leaveHostel = async (u_id) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Check if user is in an active session
+    // We look for any session where they are an ACCEPTED participant and left_at is NULL, 
+    // AND the session status is 'active'. We don't block if they are just invited or if it's pending.
+    const activeSessionCheck = await client.query(`
+      SELECT s.session_id 
+      FROM session_participants sp
+      JOIN sessions s ON sp.session_id = s.session_id
+      WHERE sp.u_id = $1 AND sp.left_at IS NULL AND sp.status = 'accepted' AND s.status = 'active'
+    `, [u_id]);
+    
+    if (activeSessionCheck.rows.length > 0) {
+      throw createError(409, 'You are currently part of an active session. Please leave the session first.');
+    }
+    
+    // 2. Remove from room
+    await client.query(`
+      UPDATE room_members
+      SET left_at = NOW()
+      WHERE u_id = $1 AND left_at IS NULL
+    `, [u_id]);
+    
+    // 3. Remove from hostel
+    await client.query(`
+      UPDATE users
+      SET hostel_id = NULL
+      WHERE u_id = $1
+    `, [u_id]);
+    
+    await client.query('COMMIT');
+    
+    // Fetch updated user info
+    const userResult = await db.query(
+      `SELECT u_id, name, email, mobile, role, hostel_id FROM users WHERE u_id = $1`,
+      [u_id]
+    );
+    return userResult.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================================================
+// joinHostel
+// =============================================================================
+const joinHostel = async (u_id, hostel_code) => {
+  const hostelResult = await db.query(
+    `SELECT hostel_id FROM hostels WHERE hostel_code = $1 LIMIT 1`,
+    [hostel_code]
+  );
+  if (hostelResult.rows.length === 0) {
+    throw createError(404, 'Invalid Secret Hostel Code.');
+  }
+  const hostel_id = hostelResult.rows[0].hostel_id;
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Check if user is already in a hostel
+    const userResult = await client.query(`SELECT hostel_id FROM users WHERE u_id = $1`, [u_id]);
+    if (userResult.rows[0].hostel_id) {
+      throw createError(400, 'You are already a member of a hostel. Please leave it first.');
+    }
+
+    // 2. Assign to hostel
+    await client.query(`UPDATE users SET hostel_id = $1 WHERE u_id = $2`, [hostel_id, u_id]);
+    
+    await client.query('COMMIT');
+    
+    const finalResult = await db.query(`SELECT u_id, name, email, mobile, role, hostel_id FROM users WHERE u_id = $1`, [u_id]);
+    return finalResult.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   registerStudent,
   loginUser,
   getMe,
   updateProfile,
+  leaveHostel,
+  joinHostel,
 };

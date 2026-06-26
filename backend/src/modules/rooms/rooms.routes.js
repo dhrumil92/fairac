@@ -23,9 +23,7 @@ const router = express.Router();
 // ─── Validation Rules ─────────────────────────────────────────────────────
 
 const createRoomValidation = [
-  body('hostel_code')
-    .notEmpty().withMessage('Hostel Code is required.')
-    .isString().withMessage('Hostel Code must be a string.'),
+
 
   body('room_no')
     .trim()

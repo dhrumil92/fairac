@@ -19,6 +19,7 @@ const RegisterPage = () => {
     mobile:   '',
     password: '',
     confirm:  '',
+    secret_code: ''
   });
   const [showPass, setShowPass]   = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +84,7 @@ const RegisterPage = () => {
     if (!form.password) errors.password = 'Password is required.';
     else if (form.password.length < 8) errors.password = 'Password must be at least 8 characters.';
     if (form.password !== form.confirm) errors.confirm = 'Passwords do not match.';
+    if (!form.secret_code.trim()) errors.secret_code = 'Secret Hostel Code is required.';
     return errors;
   };
 
@@ -99,6 +101,7 @@ const RegisterPage = () => {
         email:    form.email.trim().toLowerCase(),
         mobile:   form.mobile.trim(),
         password: form.password,
+        secret_code: form.secret_code.trim(),
       });
       const { token, user } = response.data.data;
       login(token, user);
@@ -239,6 +242,21 @@ const RegisterPage = () => {
                 onChange={handleChange}
               />
               {fieldErrors.confirm && <span className="field-error">{fieldErrors.confirm}</span>}
+            </div>
+
+            {/* Secret Hostel Code */}
+            <div className="form-group">
+              <label className="form-label" htmlFor="reg-secret">Secret Hostel Code</label>
+              <input
+                id="reg-secret"
+                name="secret_code"
+                type="text"
+                className={`form-input ${fieldErrors.secret_code ? 'input-error' : ''}`}
+                placeholder="Ask your admin for this"
+                value={form.secret_code}
+                onChange={handleChange}
+              />
+              {fieldErrors.secret_code && <span className="field-error">{fieldErrors.secret_code}</span>}
             </div>
 
             <button type="submit" className="btn-primary" disabled={isLoading} id="register-submit-btn">

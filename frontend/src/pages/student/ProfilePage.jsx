@@ -7,10 +7,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
+import Toast from '../../components/ui/Toast';
 import './StudentPages.css';
 
 const ProfilePage = () => {
-  const { user, logout, updateUserLocally } = useAuth();
+  const { user, logout, updateUserLocally, fetchMe } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -20,7 +21,10 @@ const ProfilePage = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [toastMessage, setToastMessage] = useState(null);
   const [walletBalance, setWalletBalance] = useState(null);
+  const [isLeavingHostel, setIsLeavingHostel] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const [myRoom, setMyRoom] = useState(null);
 
@@ -76,6 +80,24 @@ const ProfilePage = () => {
     }
   };
 
+  const handleLeaveHostel = async () => {
+    setIsLeavingHostel(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/leave-hostel');
+      setToastMessage(res.data?.message || 'Successfully left hostel.');
+      // Refresh user data so app knows hostel_id is null
+      // We put this in a slight timeout so the toast can be seen, but the user requested 
+      // the notification comes "once I leave", and then presumably it redirects.
+      setTimeout(() => fetchMe(), 1500); 
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to leave hostel. Please check your connection.');
+      setShowLeaveConfirm(false);
+    } finally {
+      setIsLeavingHostel(false);
+    }
+  };
+
   const inputStyle = {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     border: '1px solid rgba(108, 99, 255, 0.3)',
@@ -94,6 +116,9 @@ const ProfilePage = () => {
       <main className="page-main" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ width: '100%', maxWidth: '896px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
+          {error && <Toast message={error} type="error" duration={8000} onClose={() => setError('')} />}
+          {toastMessage && <Toast message={toastMessage} type="success" duration={8000} onClose={() => setToastMessage(null)} />}
+
           {/* ── Profile Header ── */}
           <section className="glass-card group" style={{ borderRadius: '24px', padding: '40px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', right: '-80px', top: '-80px', width: '256px', height: '256px', backgroundColor: 'rgba(108, 99, 255, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }}></div>
@@ -247,7 +272,7 @@ const ProfilePage = () => {
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Hostel Name</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
                   <p style={{ fontSize: '18px', fontWeight: '500', color: '#E2E8F0', opacity: isEditing ? 0.6 : 1 }}>
-                    {myRoom ? myRoom.hostel_name : 'Not assigned'}
+                    {user?.hostel_name || 'Not assigned'}
                   </p>
                 </div>
               </div>
@@ -288,10 +313,58 @@ const ProfilePage = () => {
               </button>
             </div>
 
-            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ fontSize: '12px', color: '#64748B' }}>Deactivating your account will permanently delete your session history.</p>
-              <button style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.1em', background: 'none', border: 'none', cursor: 'pointer' }}>Deactivate Account</button>
+            {user?.hostel_id && (
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ fontSize: '12px', color: '#64748B' }}>Leaving your hostel will preserve your history and balance, but you'll need a new code to join again.</p>
+              
+              {!showLeaveConfirm ? (
+                <button 
+                  onClick={() => setShowLeaveConfirm(true)}
+                  style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 'bold', 
+                    color: '#FF6B6B', 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '0.1em', 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  Leave Hostel
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#FF6B6B', fontWeight: 'bold' }}>Are you sure?</span>
+                  <button 
+                    onClick={() => setShowLeaveConfirm(false)}
+                    disabled={isLeavingHostel}
+                    style={{ fontSize: '12px', color: '#94A3B8', background: 'none', border: 'none', cursor: isLeavingHostel ? 'not-allowed' : 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleLeaveHostel}
+                    disabled={isLeavingHostel}
+                    style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 'bold', 
+                      color: 'white', 
+                      backgroundColor: '#FF6B6B',
+                      padding: '4px 12px',
+                      borderRadius: '6px',
+                      textTransform: 'uppercase', 
+                      letterSpacing: '0.05em', 
+                      border: 'none', 
+                      cursor: isLeavingHostel ? 'not-allowed' : 'pointer' 
+                    }}
+                  >
+                    {isLeavingHostel ? 'Leaving...' : 'Yes, Leave'}
+                  </button>
+                </div>
+              )}
             </div>
+            )}
           </section>
 
           {/* Footer Context */}

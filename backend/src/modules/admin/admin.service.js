@@ -52,7 +52,7 @@ const rechargeWallet = async ({ admin, student_identifier, amount, note }) => {
 
   // Find the student
   const studentResult = await db.query(
-    `SELECT u_id, name, email FROM users
+    `SELECT u_id, name, email, hostel_id FROM users
      WHERE (email = $1 OR mobile = $1) AND role = 'student' AND is_active = TRUE
      LIMIT 1`,
     [student_identifier.toLowerCase()]
@@ -64,16 +64,8 @@ const rechargeWallet = async ({ admin, student_identifier, amount, note }) => {
 
   const student = studentResult.rows[0];
 
-  // Verify student has a room in this admin's hostel
-  const hostelCheck = await db.query(
-    `SELECT rm.rm_id FROM room_members rm
-     JOIN rooms r ON r.r_id = rm.r_id
-     WHERE rm.u_id = $1 AND r.hostel_id = $2 AND rm.left_at IS NULL
-     LIMIT 1`,
-    [student.u_id, admin.hostel_id]
-  );
-
-  if (hostelCheck.rows.length === 0) {
+  // Verify student belongs to this admin's hostel
+  if (student.hostel_id !== admin.hostel_id) {
     throw createError(
       403,
       `${student.name} does not belong to your hostel. You can only recharge your hostel's students.`
@@ -142,7 +134,7 @@ const deductWallet = async ({ admin, student_identifier, amount, note }) => {
   }
 
   const studentResult = await db.query(
-    `SELECT u_id, name, email FROM users
+    `SELECT u_id, name, email, hostel_id FROM users
      WHERE (email = $1 OR mobile = $1) AND role = 'student' AND is_active = TRUE LIMIT 1`,
     [student_identifier.toLowerCase()]
   );
@@ -151,6 +143,13 @@ const deductWallet = async ({ admin, student_identifier, amount, note }) => {
   }
 
   const student = studentResult.rows[0];
+
+  if (student.hostel_id !== admin.hostel_id) {
+    throw createError(
+      403,
+      `${student.name} does not belong to your hostel.`
+    );
+  }
 
   // Check wallet balance
   const walletResult = await db.query(
@@ -204,18 +203,17 @@ const deductWallet = async ({ admin, student_identifier, amount, note }) => {
 //
 const getStudents = async ({ admin, search }) => {
   assertAdmin(admin);
-
   let query = `
-    SELECT DISTINCT
+    SELECT 
       u.u_id, u.name, u.email, u.mobile, u.is_active, u.created_at,
       w.balance,
       r.room_no,
       rm.role AS room_role
     FROM users u
-    JOIN room_members rm ON rm.u_id = u.u_id AND rm.left_at IS NULL
-    JOIN rooms r ON r.r_id = rm.r_id AND r.hostel_id = $1
     LEFT JOIN wallets w ON w.u_id = u.u_id
-    WHERE u.role = 'student'
+    LEFT JOIN room_members rm ON rm.u_id = u.u_id AND rm.left_at IS NULL
+    LEFT JOIN rooms r ON r.r_id = rm.r_id
+    WHERE u.role = 'student' AND u.hostel_id = $1
   `;
 
   const params = [admin.hostel_id];

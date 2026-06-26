@@ -41,7 +41,15 @@ const getActiveRoomMembership = async (u_id) => {
 // TRANSACTION: rooms INSERT + room_members INSERT must be atomic.
 //   If room is created but owner record fails → orphaned room with no owner.
 //
-const createRoom = async ({ u_id, hostel_code, room_no, room_name, capacity, rate_per_unit }) => {
+const createRoom = async ({ u_id, room_no, room_name, capacity, rate_per_unit }) => {
+  // Fetch fresh user data to get accurate hostel_id
+  const freshUserResult = await db.query(`SELECT hostel_id FROM users WHERE u_id = $1`, [u_id]);
+  const hostel_id = freshUserResult.rows[0]?.hostel_id;
+
+  if (!hostel_id) {
+    throw createError(403, 'Your account is not linked to a hostel. Please join a hostel first.');
+  }
+
   // Rule 1: Check if user already has an active room
   const existingMembership = await getActiveRoomMembership(u_id);
   if (existingMembership) {
@@ -51,17 +59,6 @@ const createRoom = async ({ u_id, hostel_code, room_no, room_name, capacity, rat
     );
   }
 
-  // Look up hostel by secret code
-  const hostelResult = await db.query(
-    `SELECT hostel_id FROM hostels WHERE hostel_code = $1 LIMIT 1`,
-    [hostel_code]
-  );
-
-  if (hostelResult.rows.length === 0) {
-    throw createError(400, 'Invalid Hostel Code. Please check with your Admin.');
-  }
-
-  const hostel_id = hostelResult.rows[0].hostel_id;
   const norm_room_no = room_no.trim().toUpperCase();
 
   // Check if room already exists

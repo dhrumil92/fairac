@@ -404,9 +404,9 @@ const SessionPage = () => {
                 </section>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className={activeSession ? "grid grid-cols-1 lg:grid-cols-[35%_1fr] gap-8 items-start" : "grid grid-cols-1 gap-8 items-start"}>
                 {/* Dynamic Column: Controls & Panels */}
-                <div className={activeSession ? "lg:col-span-4 flex flex-col gap-8" : "lg:col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start"}>
+                <div className={activeSession ? "flex flex-col gap-8" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start"}>
 
                   {/* 1. Start New Session Card */}
                   {!activeSession && (
@@ -569,7 +569,7 @@ const SessionPage = () => {
 
                 {/* RIGHT COLUMN: Active Session Live View */}
                 {activeSession && (
-                  <div className="lg:col-span-8">
+                  <div>
                     <section className={`${glassCardClasses} rounded-3xl overflow-hidden shadow-2xl relative min-h-[350px] flex flex-col`}>
 
                       {/* Header with Status */}

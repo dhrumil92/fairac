@@ -825,7 +825,8 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
 
         const { wallet_id, balance } = walletResult.rows[0];
         const currentBalance = parseFloat(balance);
-        const actualDeduction = Math.min(bill.cost, currentBalance);
+        const actualDeduction = bill.cost; // Fix: Deduct full amount, allow negative balance for debt
+
 
         // Deduct from wallet
         await client.query(

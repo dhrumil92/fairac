@@ -27,11 +27,11 @@ const createRoom = async (req, res, next) => {
   try {
     if (handleValidationErrors(req, res)) return;
 
-    const { hostel_code, room_no, room_name, capacity, rate_per_unit } = req.body;
+    const { room_no, room_name, capacity, rate_per_unit } = req.body;
 
     const room = await roomsService.createRoom({
       u_id: req.user.u_id,
-      hostel_code,
+      hostel_id: req.user.hostel_id,
       room_no,
       room_name,
       capacity,

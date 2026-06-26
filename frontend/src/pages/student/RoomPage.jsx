@@ -30,7 +30,6 @@ const RoomPage = () => {
   const [invitations, setInvitations] = useState([]);
 
   // New Room Form
-  const [hostelCode, setHostelCode] = useState('');
   const [newRoomNo, setNewRoomNo] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -126,14 +125,13 @@ const RoomPage = () => {
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     clearMessages();
-    if (!hostelCode || !newRoomNo || !newRoomCapacity) {
+    if (!newRoomNo || !newRoomCapacity) {
       setError('Please fill all fields to create a room.');
       return;
     }
     setIsCreating(true);
     try {
       const res = await api.post('/rooms', {
-        hostel_code: hostelCode.trim(),
         room_no: newRoomNo,
         room_name: `Room ${newRoomNo}`,
         capacity: parseInt(newRoomCapacity, 10),
@@ -356,17 +354,6 @@ const RoomPage = () => {
                 <h3>Create New Room</h3>
               </div>
               <form className="room-form" onSubmit={handleCreateRoom}>
-                <div className="form-group-col">
-                  <label>Secret Hostel Code</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Enter code provided by Admin (e.g. ABC-2026)"
-                    value={hostelCode}
-                    onChange={e => setHostelCode(e.target.value)}
-                    required
-                  />
-                </div>
                 <div className="grid-cols-2">
                   <div className="form-group-col">
                     <label>Room Number</label>
