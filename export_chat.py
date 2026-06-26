@@ -1,7 +1,7 @@
 import json
 
 input_path = r'C:\Users\dhrum\.gemini\antigravity-ide\brain\4ee4dcfb-4003-4498-b695-643142f1936c\.system_generated\logs\transcript.jsonl'
-output_path = r'c:\Users\dhrum\Desktop\FairAC\chat.md'
+output_path = r'g:\Project\FairAC\chat.md'
 
 with open(input_path, 'r', encoding='utf-8') as fin, open(output_path, 'w', encoding='utf-8') as fout:
     fout.write('# Chat Transcript\n\n')

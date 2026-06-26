@@ -2,6 +2,7 @@ download receipt option after status column in all session history
 schedule ac session booking
 manage session bookings
 forgot password
+email and mobile verification
 piyush sir:
 payment gateway
 sent total amount at the end of every month
