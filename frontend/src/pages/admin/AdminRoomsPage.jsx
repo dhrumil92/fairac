@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
@@ -9,6 +10,46 @@ const AdminRoomsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Room Number Filter
+  const [filterRoomNo, setFilterRoomNo] = useState('all');
+  const [isRoomDropdownOpen, setIsRoomDropdownOpen] = useState(false);
+  const roomDropdownRef = useRef(null);
+  const portalRoomDropdownRef = useRef(null);
+  const [roomDropdownRect, setRoomDropdownRect] = useState(null);
+
+  // Active Session Filter
+  const [filterSession, setFilterSession] = useState('all');
+  const [isSessionDropdownOpen, setIsSessionDropdownOpen] = useState(false);
+  const sessionDropdownRef = useRef(null);
+  const portalSessionDropdownRef = useRef(null);
+  const [sessionDropdownRect, setSessionDropdownRect] = useState(null);
+
+  // Status Filter
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef(null);
+  const portalStatusDropdownRef = useRef(null);
+  const [statusDropdownRect, setStatusDropdownRect] = useState(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (roomDropdownRef.current && !roomDropdownRef.current.contains(event.target) && (!portalRoomDropdownRef.current || !portalRoomDropdownRef.current.contains(event.target))) setIsRoomDropdownOpen(false);
+      if (sessionDropdownRef.current && !sessionDropdownRef.current.contains(event.target) && (!portalSessionDropdownRef.current || !portalSessionDropdownRef.current.contains(event.target))) setIsSessionDropdownOpen(false);
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target) && (!portalStatusDropdownRef.current || !portalStatusDropdownRef.current.contains(event.target))) setIsStatusDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredRooms = rooms.filter(r => {
+    if (filterRoomNo !== 'all' && String(r.room_no) !== String(filterRoomNo)) return false;
+    if (filterSession === 'active' && parseInt(r.active_sessions) === 0) return false;
+    if (filterSession === 'inactive' && parseInt(r.active_sessions) > 0) return false;
+    if (filterStatus === 'active' && r.is_active !== true) return false;
+    if (filterStatus === 'inactive' && r.is_active !== false) return false;
+    return true;
+  });
+
   // Modal States
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [roomDetails, setRoomDetails] = useState(null);
@@ -16,6 +57,37 @@ const AdminRoomsPage = () => {
   const [modalError, setModalError] = useState('');
   const [modalSuccess, setModalSuccess] = useState('');
   const [inviteIdentifier, setInviteIdentifier] = useState('');
+
+  // Add Room Modal States
+  const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
+  const [newRoomNo, setNewRoomNo] = useState('');
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomCapacity, setNewRoomCapacity] = useState('');
+  const [addRoomError, setAddRoomError] = useState('');
+  const [isAddingRoom, setIsAddingRoom] = useState(false);
+
+  const handleAddRoom = async (e) => {
+    e.preventDefault();
+    if (!newRoomNo.trim() || !newRoomCapacity) return;
+    try {
+      setIsAddingRoom(true);
+      setAddRoomError('');
+      await api.post('/admin/rooms', {
+        room_no: newRoomNo.trim(),
+        room_name: newRoomName.trim(),
+        capacity: parseInt(newRoomCapacity)
+      });
+      setIsAddRoomModalOpen(false);
+      setNewRoomNo('');
+      setNewRoomName('');
+      setNewRoomCapacity('');
+      fetchRooms();
+    } catch (err) {
+      setAddRoomError(err.response?.data?.message || 'Failed to add room');
+    } finally {
+      setIsAddingRoom(false);
+    }
+  };
 
   const fetchRooms = async () => {
     try {
@@ -70,6 +142,20 @@ const AdminRoomsPage = () => {
     }
   };
 
+  const handleToggleRoomStatus = async () => {
+    if (!roomDetails) return;
+    try {
+      setModalError('');
+      setModalSuccess('');
+      const newStatus = !roomDetails.room.is_active;
+      const res = await api.post(`/admin/rooms/${selectedRoomId}/toggle-status`, { is_active: newStatus });
+      setModalSuccess(res.data.message);
+      fetchRoomDetails(selectedRoomId); // Refresh modal data
+    } catch (err) {
+      setModalError(err.response?.data?.message || 'Failed to toggle room status');
+    }
+  };
+
   const handleInviteStudent = async (e) => {
     e.preventDefault();
     if (!inviteIdentifier.trim()) return;
@@ -91,26 +177,31 @@ const AdminRoomsPage = () => {
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
-      <main className="page-main" style={{ padding: '40px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
-          {/* Header */}
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ fontSize: '30px', fontWeight: 'bold', fontFamily: '"Plus Jakarta Sans", sans-serif', color: 'white' }}>Room Management</h2>
-              <p style={{ color: '#94A3B8', fontSize: '14px' }}>Overview of all hostel rooms, occupancy, and active AC sessions.</p>
+      <main className="page-main" style={{ padding: '0' }}>
+        
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">Room Management</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">Overview of all hostel rooms, occupancy, and active AC sessions.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <button 
+              onClick={() => setIsAddRoomModalOpen(true)}
+              style={{ padding: '8px 16px', backgroundColor: '#6C63FF', color: 'white', fontWeight: 'bold', borderRadius: '12px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+              Add New Room
+            </button>
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 rounded-full border border-white/10">
+              <span className="material-symbols-outlined text-sm text-slate-400">admin_panel_settings</span>
+              <span className="text-sm font-medium text-white">{user?.name} (Admin)</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <button style={{ padding: '10px 20px', backgroundColor: '#6C63FF', color: 'white', fontWeight: 'bold', borderRadius: '12px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-                Add New Room
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '6px 12px', backgroundColor: '#1A2540', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#6C63FF' }}>admin_panel_settings</span>
-                <span style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>{user?.name}</span>
-              </div>
-            </div>
-          </header>
+          </div>
+        </header>
+
+        <div style={{ padding: '0 40px 40px' }}>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
           {error && <div style={{ padding: '16px', backgroundColor: 'rgba(255,107,107,0.1)', color: '#FF6B6B', borderRadius: '12px' }}>{error}</div>}
 
@@ -124,20 +215,144 @@ const AdminRoomsPage = () => {
               <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                 <thead style={{ backgroundColor: 'rgba(255,255,255,0.05)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94A3B8' }}>
                   <tr>
-                    <th style={{ padding: '16px 24px' }}>Room Number</th>
+                    <th style={{ padding: '16px 24px' }}>
+                      <div ref={roomDropdownRef} style={{ position: 'relative', display: 'inline-block', width: '150px' }}>
+                        <div 
+                          className="bg-[#0F1729] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white cursor-pointer flex justify-between items-center hover:border-white/20 transition-colors"
+                          onClick={() => {
+                            if (!isRoomDropdownOpen && roomDropdownRef.current) setRoomDropdownRect(roomDropdownRef.current.getBoundingClientRect());
+                            setIsRoomDropdownOpen(!isRoomDropdownOpen);
+                          }}
+                          style={{ height: '31px' }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {filterRoomNo === 'all' ? 'ROOM: ALL' : `ROOM: ${filterRoomNo}`}
+                          </span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#6C63FF' }}>keyboard_arrow_down</span>
+                        </div>
+                        {isRoomDropdownOpen && roomDropdownRect && createPortal(
+                          <div 
+                            ref={portalRoomDropdownRef}
+                            style={{ 
+                              position: 'fixed', top: roomDropdownRect.bottom + 4, left: roomDropdownRect.left, width: roomDropdownRect.width, 
+                              backgroundColor: '#0F1729', border: '1px solid rgba(255,255,255,0.1)', 
+                              borderRadius: '8px', zIndex: 9999, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                            }}
+                          >
+                            <div 
+                              style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', color: filterRoomNo === 'all' ? 'white' : '#8892B0', backgroundColor: filterRoomNo === 'all' ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, zIndex: 10 }}
+                              onMouseEnter={(e) => { if (filterRoomNo !== 'all') e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
+                              onMouseLeave={(e) => { if (filterRoomNo !== 'all') e.currentTarget.style.backgroundColor = 'transparent' }}
+                              onClick={() => { setFilterRoomNo('all'); setIsRoomDropdownOpen(false); }}
+                            >
+                              ROOM: ALL
+                            </div>
+                            <div style={{ maxHeight: '270px', overflowY: 'auto' }}>
+                              {rooms.map(r => r.room_no).map(no => (
+                                <div 
+                                  key={no}
+                                  style={{ padding: '10px 12px', fontSize: '12px', cursor: 'pointer', color: String(filterRoomNo) === String(no) ? 'white' : '#8892B0', backgroundColor: String(filterRoomNo) === String(no) ? 'rgba(108, 99, 255, 0.2)' : 'transparent' }}
+                                  onMouseEnter={(e) => { if (String(filterRoomNo) !== String(no)) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
+                                  onMouseLeave={(e) => { if (String(filterRoomNo) !== String(no)) e.currentTarget.style.backgroundColor = 'transparent' }}
+                                  onClick={() => { setFilterRoomNo(no); setIsRoomDropdownOpen(false); }}
+                                >
+                                  {no}
+                                </div>
+                              ))}
+                            </div>
+                          </div>, document.body
+                        )}
+                      </div>
+                    </th>
                     <th style={{ padding: '16px 24px' }}>Capacity / Occupancy</th>
-                    <th style={{ padding: '16px 24px' }}>Active Sessions</th>
+                    <th style={{ padding: '16px 24px' }}>
+                      <div ref={sessionDropdownRef} style={{ position: 'relative', display: 'inline-block', width: '160px' }}>
+                        <div 
+                          className="bg-[#0F1729] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white cursor-pointer flex justify-between items-center hover:border-white/20 transition-colors"
+                          onClick={() => {
+                            if (!isSessionDropdownOpen && sessionDropdownRef.current) setSessionDropdownRect(sessionDropdownRef.current.getBoundingClientRect());
+                            setIsSessionDropdownOpen(!isSessionDropdownOpen);
+                          }}
+                          style={{ height: '31px' }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {filterSession === 'all' ? 'SESSIONS: ALL' : filterSession === 'active' ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#6C63FF' }}>keyboard_arrow_down</span>
+                        </div>
+                        {isSessionDropdownOpen && sessionDropdownRect && createPortal(
+                          <div 
+                            ref={portalSessionDropdownRef}
+                            style={{ 
+                              position: 'fixed', top: sessionDropdownRect.bottom + 4, left: sessionDropdownRect.left, width: sessionDropdownRect.width, 
+                              backgroundColor: '#0F1729', border: '1px solid rgba(255,255,255,0.1)', 
+                              borderRadius: '8px', zIndex: 9999, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                            }}
+                          >
+                            {['all', 'active', 'inactive'].map(opt => (
+                              <div 
+                                key={opt}
+                                style={{ padding: '10px 12px', fontSize: '12px', fontWeight: opt==='all'?'bold':'normal', cursor: 'pointer', color: filterSession === opt ? 'white' : '#8892B0', backgroundColor: filterSession === opt ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: opt==='all'?'1px solid rgba(255,255,255,0.1)':'none' }}
+                                onMouseEnter={(e) => { if (filterSession !== opt) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
+                                onMouseLeave={(e) => { if (filterSession !== opt) e.currentTarget.style.backgroundColor = 'transparent' }}
+                                onClick={() => { setFilterSession(opt); setIsSessionDropdownOpen(false); }}
+                              >
+                                {opt === 'all' ? 'SESSIONS: ALL' : opt.toUpperCase()}
+                              </div>
+                            ))}
+                          </div>, document.body
+                        )}
+                      </div>
+                    </th>
                     <th style={{ padding: '16px 24px' }}>Rate / Unit</th>
-                    <th style={{ padding: '16px 24px' }}>Status</th>
+                    <th style={{ padding: '16px 24px' }}>
+                      <div ref={statusDropdownRef} style={{ position: 'relative', display: 'inline-block', width: '140px' }}>
+                        <div 
+                          className="bg-[#0F1729] border border-white/10 rounded-lg py-1.5 px-3 text-xs text-white cursor-pointer flex justify-between items-center hover:border-white/20 transition-colors"
+                          onClick={() => {
+                            if (!isStatusDropdownOpen && statusDropdownRef.current) setStatusDropdownRect(statusDropdownRef.current.getBoundingClientRect());
+                            setIsStatusDropdownOpen(!isStatusDropdownOpen);
+                          }}
+                          style={{ height: '31px' }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {filterStatus === 'all' ? 'STATUS: ALL' : filterStatus === 'active' ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#6C63FF' }}>keyboard_arrow_down</span>
+                        </div>
+                        {isStatusDropdownOpen && statusDropdownRect && createPortal(
+                          <div 
+                            ref={portalStatusDropdownRef}
+                            style={{ 
+                              position: 'fixed', top: statusDropdownRect.bottom + 4, left: statusDropdownRect.left, width: statusDropdownRect.width, 
+                              backgroundColor: '#0F1729', border: '1px solid rgba(255,255,255,0.1)', 
+                              borderRadius: '8px', zIndex: 9999, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                            }}
+                          >
+                            {['all', 'active', 'inactive'].map(opt => (
+                              <div 
+                                key={opt}
+                                style={{ padding: '10px 12px', fontSize: '12px', fontWeight: opt==='all'?'bold':'normal', cursor: 'pointer', color: filterStatus === opt ? 'white' : '#8892B0', backgroundColor: filterStatus === opt ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: opt==='all'?'1px solid rgba(255,255,255,0.1)':'none' }}
+                                onMouseEnter={(e) => { if (filterStatus !== opt) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
+                                onMouseLeave={(e) => { if (filterStatus !== opt) e.currentTarget.style.backgroundColor = 'transparent' }}
+                                onClick={() => { setFilterStatus(opt); setIsStatusDropdownOpen(false); }}
+                              >
+                                {opt === 'all' ? 'STATUS: ALL' : opt.toUpperCase()}
+                              </div>
+                            ))}
+                          </div>, document.body
+                        )}
+                      </div>
+                    </th>
                     <th style={{ padding: '16px 24px', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody style={{ divideY: '1px solid rgba(255,255,255,0.05)' }}>
                   {isLoading && rooms.length === 0 ? (
                     <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>Loading rooms...</td></tr>
-                  ) : rooms.length === 0 ? (
+                  ) : filteredRooms.length === 0 ? (
                     <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No rooms found</td></tr>
-                  ) : rooms.map(room => (
+                  ) : filteredRooms.map(room => (
                     <tr key={room.r_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -221,8 +436,16 @@ const AdminRoomsPage = () => {
                     </div>
                     <div>
                       <div style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '4px' }}>Status</div>
-                      <div style={{ color: roomDetails.room.is_active ? '#00D4AA' : '#FF6B6B', fontWeight: 'bold' }}>
-                        {roomDetails.room.is_active ? 'Active' : 'Inactive'}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ color: roomDetails.room.is_active ? '#00D4AA' : '#FF6B6B', fontWeight: 'bold' }}>
+                          {roomDetails.room.is_active ? 'Active' : 'Inactive'}
+                        </div>
+                        <button 
+                          onClick={handleToggleRoomStatus}
+                          style={{ padding: '4px 8px', backgroundColor: roomDetails.room.is_active ? 'rgba(255,107,107,0.1)' : 'rgba(0,212,170,0.1)', color: roomDetails.room.is_active ? '#FF6B6B' : '#00D4AA', border: `1px solid ${roomDetails.room.is_active ? 'rgba(255,107,107,0.2)' : 'rgba(0,212,170,0.2)'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}
+                        >
+                          {roomDetails.room.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -256,35 +479,102 @@ const AdminRoomsPage = () => {
                   </div>
 
                   {/* Add Student Section */}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '24px' }}>
-                    <h4 style={{ fontSize: '14px', color: '#CBD5E1', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invite Student</h4>
-                    <form onSubmit={handleInviteStudent} style={{ display: 'flex', gap: '12px' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Enter Student Email or Mobile..." 
-                        value={inviteIdentifier}
-                        onChange={(e) => setInviteIdentifier(e.target.value)}
-                        style={{ flex: 1, padding: '10px 16px', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', fontSize: '14px' }}
-                        required
-                      />
-                      <button 
-                        type="submit"
-                        disabled={roomDetails.members.length >= roomDetails.room.capacity}
-                        style={{ padding: '10px 20px', backgroundColor: roomDetails.members.length >= roomDetails.room.capacity ? '#475569' : '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: roomDetails.members.length >= roomDetails.room.capacity ? 'not-allowed' : 'pointer' }}
-                      >
-                        Send Invite
-                      </button>
-                    </form>
-                    {roomDetails.members.length >= roomDetails.room.capacity && (
-                      <div style={{ color: '#F59E0B', fontSize: '12px', marginTop: '8px' }}>Cannot invite: Room is at full capacity.</div>
-                    )}
-                  </div>
+                  {roomDetails.members.length < parseInt(roomDetails.room.capacity || 0) && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '24px' }}>
+                      <h4 style={{ fontSize: '14px', color: '#CBD5E1', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invite Student</h4>
+                      <form onSubmit={handleInviteStudent} style={{ display: 'flex', gap: '12px' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Enter Student Email or Mobile..." 
+                          value={inviteIdentifier}
+                          onChange={(e) => setInviteIdentifier(e.target.value)}
+                          style={{ flex: 1, padding: '10px 16px', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', fontSize: '14px' }}
+                          required
+                        />
+                        <button 
+                          type="submit"
+                          style={{ padding: '10px 20px', backgroundColor: '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                          Send Invite
+                        </button>
+                      </form>
+                    </div>
+                  )}
 
                 </div>
               ) : null}
             </div>
           </div>
         )}
+
+        {/* Add New Room Modal */}
+        {isAddRoomModalOpen && (
+          <div className="modal-overlay" style={{ zIndex: 2000 }}>
+            <div className="modal-content glass-card" style={{ maxWidth: '500px', backgroundColor: '#1A2540' }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h3 className="modal-title" style={{ margin: 0 }}>Add New Room</h3>
+                <button onClick={() => {
+                  setIsAddRoomModalOpen(false);
+                  setNewRoomNo('');
+                  setNewRoomName('');
+                  setNewRoomCapacity('');
+                  setAddRoomError('');
+                }} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {addRoomError && <div style={{ padding: '12px', backgroundColor: 'rgba(255,107,107,0.1)', color: '#FF6B6B', borderRadius: '8px', fontSize: '14px', marginBottom: '16px' }}>{addRoomError}</div>}
+
+              <form onSubmit={handleAddRoom} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94A3B8', marginBottom: '8px', textTransform: 'uppercase' }}>Room Number *</label>
+                  <input 
+                    type="text" 
+                    value={newRoomNo}
+                    onChange={(e) => setNewRoomNo(e.target.value)}
+                    placeholder="e.g. 101, A-1"
+                    style={{ width: '100%', padding: '12px', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94A3B8', marginBottom: '8px', textTransform: 'uppercase' }}>Room Name (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={newRoomName}
+                    onChange={(e) => setNewRoomName(e.target.value)}
+                    placeholder="e.g. Deluxe Suite"
+                    style={{ width: '100%', padding: '12px', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#94A3B8', marginBottom: '8px', textTransform: 'uppercase' }}>Capacity *</label>
+                  <input 
+                    type="number" 
+                    value={newRoomCapacity}
+                    onChange={(e) => setNewRoomCapacity(e.target.value)}
+                    placeholder="Number of students"
+                    min="1"
+                    style={{ width: '100%', padding: '12px', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                    required
+                  />
+                </div>
+                
+                <button 
+                  type="submit"
+                  disabled={isAddingRoom}
+                  style={{ marginTop: '8px', width: '100%', padding: '14px', backgroundColor: isAddingRoom ? '#475569' : '#6C63FF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isAddingRoom ? 'not-allowed' : 'pointer' }}
+                >
+                  {isAddingRoom ? 'Adding...' : 'Create Room'}
+                </button>
+              </form>
+
+            </div>
+          </div>
+        )}
+          </div>
       </main>
     </div>
   );

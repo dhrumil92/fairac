@@ -15,15 +15,16 @@
 
 const db = require('../../config/db');
 const { createError } = require('../../middleware/errorHandler');
+const bcrypt = require('bcryptjs');
 
 // ─── Helper: assertAdmin ──────────────────────────────────────────────────
 // Ensures the caller is an admin AND has a hostel_id.
 // Called at the top of every admin service function.
 const assertAdmin = (user) => {
-  if (user.role !== 'admin') {
-    throw createError(403, 'Access denied. Admin role required.');
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
+    throw createError(403, 'Access denied. Admin or Super Admin role required.');
   }
-  if (!user.hostel_id) {
+  if (user.role !== 'super_admin' && !user.hostel_id) {
     throw createError(403, 'Admin account is not linked to a hostel. Contact support.');
   }
 };
@@ -65,7 +66,7 @@ const rechargeWallet = async ({ admin, student_identifier, amount, note }) => {
   const student = studentResult.rows[0];
 
   // Verify student belongs to this admin's hostel
-  if (student.hostel_id !== admin.hostel_id) {
+  if (admin.role !== 'super_admin' && student.hostel_id !== admin.hostel_id) {
     throw createError(
       403,
       `${student.name} does not belong to your hostel. You can only recharge your hostel's students.`
@@ -213,7 +214,7 @@ const getStudents = async ({ admin, search }) => {
     LEFT JOIN wallets w ON w.u_id = u.u_id
     LEFT JOIN room_members rm ON rm.u_id = u.u_id AND rm.left_at IS NULL
     LEFT JOIN rooms r ON r.r_id = rm.r_id
-    WHERE u.role = 'student' AND u.hostel_id = $1
+    WHERE u.role = 'student' AND ($1::int IS NULL OR u.hostel_id = $1)
   `;
 
   const params = [admin.hostel_id];
@@ -245,11 +246,70 @@ const getRooms = async ({ admin }) => {
        owner.name AS owner_name
      FROM rooms r
      LEFT JOIN users owner ON owner.u_id = r.created_by
-     WHERE r.hostel_id = $1
+     WHERE ($1::int IS NULL OR r.hostel_id = $1)
      ORDER BY r.room_no ASC`,
+     [admin.hostel_id]
+   );
+   return result.rows;
+ };
+
+// =============================================================================
+// createRoom
+// =============================================================================
+// Adds a new room to the admin's hostel.
+// Rate per unit is automatically inherited from the hostel settings.
+const createRoom = async ({ admin, room_no, room_name, capacity }) => {
+  assertAdmin(admin);
+
+  // 1. Check if room_no already exists in this hostel
+  const existingRoom = await db.query(
+    `SELECT r_id FROM rooms WHERE hostel_id = $1 AND room_no = $2`,
+    [admin.hostel_id, room_no]
+  );
+  if (existingRoom.rows.length > 0) {
+    throw createError(400, 'Room number already exists in this hostel');
+  }
+
+  // 2. Fetch rate_per_unit from hostels table
+  const hostelRes = await db.query(
+    `SELECT rate_per_unit FROM hostels WHERE hostel_id = $1`,
     [admin.hostel_id]
   );
-  return result.rows;
+  if (hostelRes.rows.length === 0) {
+    throw createError(404, 'Hostel not found');
+  }
+  const rate_per_unit = hostelRes.rows[0].rate_per_unit || 0;
+
+  // 3. Insert into rooms table
+  const insertRes = await db.query(
+    `INSERT INTO rooms (hostel_id, created_by, room_no, room_name, capacity, rate_per_unit, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, false)
+     RETURNING *`,
+    [admin.hostel_id, admin.u_id, room_no, room_name || null, capacity, rate_per_unit]
+  );
+
+  return insertRes.rows[0];
+};
+
+// =============================================================================
+// toggleRoomStatus
+// =============================================================================
+// Manually activate or deactivate a room
+const toggleRoomStatus = async ({ admin, room_id, is_active }) => {
+  assertAdmin(admin);
+
+  // Check if room belongs to admin's hostel
+  const roomCheck = await db.query(
+    `SELECT r_id FROM rooms WHERE r_id = $1 AND ($2::int IS NULL OR hostel_id = $2)`,
+    [room_id, admin.hostel_id]
+  );
+  if (roomCheck.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
+
+  const res = await db.query(
+    `UPDATE rooms SET is_active = $1 WHERE r_id = $2 RETURNING *`,
+    [is_active, room_id]
+  );
+  return res.rows[0];
 };
 
 // =============================================================================
@@ -271,7 +331,7 @@ const getActiveSessions = async ({ admin }) => {
      FROM sessions s
      JOIN rooms r ON r.r_id = s.r_id
      JOIN users u ON u.u_id = s.created_by
-     WHERE s.status = 'active' AND r.hostel_id = $1
+     WHERE s.status = 'active' AND ($1::int IS NULL OR r.hostel_id = $1)
      ORDER BY s.start_time ASC`,
     [admin.hostel_id]
   );
@@ -288,23 +348,22 @@ const getDashboardOverview = async ({ admin }) => {
 
   const result = await db.query(
     `SELECT
-       (SELECT COUNT(*) FROM rooms WHERE hostel_id = $1 AND is_active = TRUE)
+       (SELECT COUNT(*) FROM rooms WHERE ($1::int IS NULL OR hostel_id = $1) AND is_active = TRUE)
          AS total_rooms,
 
-       (SELECT COUNT(DISTINCT rm.u_id) FROM room_members rm
-        JOIN rooms r ON r.r_id = rm.r_id
-        WHERE r.hostel_id = $1 AND rm.left_at IS NULL)
+       (SELECT COUNT(*) FROM users
+        WHERE role = 'student' AND ($1::int IS NULL OR hostel_id = $1) AND is_active = TRUE)
          AS total_students,
 
        (SELECT COUNT(*) FROM sessions s
         JOIN rooms r ON r.r_id = s.r_id
-        WHERE r.hostel_id = $1 AND s.status = 'active')
+        WHERE ($1::int IS NULL OR r.hostel_id = $1) AND s.status = 'active')
          AS active_sessions,
 
        (SELECT COALESCE(SUM(cr.units_consumed), 0) FROM consumption_records cr
         JOIN sessions s ON s.session_id = cr.session_id
         JOIN rooms r ON r.r_id = s.r_id
-        WHERE r.hostel_id = $1)
+        WHERE ($1::int IS NULL OR r.hostel_id = $1))
          AS total_units_consumed,
 
        (SELECT COALESCE(SUM(wt.amount), 0) FROM wallet_transactions wt
@@ -312,19 +371,181 @@ const getDashboardOverview = async ({ admin }) => {
         JOIN users u ON u.u_id = w.u_id
         JOIN room_members rm ON rm.u_id = u.u_id
         JOIN rooms r ON r.r_id = rm.r_id
-        WHERE r.hostel_id = $1 AND wt.type = 'recharge')
+        WHERE ($1::int IS NULL OR r.hostel_id = $1) AND wt.type = 'recharge')
          AS total_recharged,
 
        (SELECT COALESCE(SUM(cr.cost), 0) FROM consumption_records cr
         JOIN sessions s ON s.session_id = cr.session_id
         JOIN rooms r ON r.r_id = s.r_id
-        WHERE r.hostel_id = $1)
+        WHERE ($1::int IS NULL OR r.hostel_id = $1))
          AS total_billed
     `,
     [admin.hostel_id]
   );
 
   return result.rows[0];
+};
+
+// =============================================================================
+// getHostelsOverview (Super Admin Only)
+// =============================================================================
+// Lists all hostels and their aggregate stats.
+//
+const getHostelsOverview = async ({ admin }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') {
+    throw createError(403, 'Only Super Admin can access the hostels overview.');
+  }
+
+  const result = await db.query(`
+    SELECT
+      h.hostel_id,
+      h.name AS hostel_name,
+      h.hostel_code,
+      h.is_active,
+      h.address,
+      (SELECT COUNT(*) FROM rooms r WHERE r.hostel_id = h.hostel_id AND r.is_active = TRUE) AS total_rooms,
+      (SELECT COUNT(*) FROM users WHERE role = 'student' AND hostel_id = h.hostel_id AND is_active = TRUE) AS total_students,
+      (SELECT COUNT(*) FROM sessions s JOIN rooms r ON r.r_id = s.r_id WHERE r.hostel_id = h.hostel_id AND s.status = 'active') AS active_sessions,
+      (SELECT COALESCE(SUM(cr.cost), 0) FROM consumption_records cr JOIN sessions s ON s.session_id = cr.session_id JOIN rooms r ON r.r_id = s.r_id WHERE r.hostel_id = h.hostel_id) AS total_revenue
+    FROM hostels h
+    ORDER BY h.name ASC
+  `);
+
+  return result.rows;
+};
+
+// =============================================================================
+// createHostel (Super Admin Only)
+// =============================================================================
+// Creates a new hostel and provisions its admin user via a DB transaction.
+//
+const createHostel = async ({ admin, hostelData, adminData }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') {
+    throw createError(403, 'Only Super Admin can create hostels.');
+  }
+
+  // 1. Begin Transaction
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // 2. Insert Hostel
+    const hostelQuery = `
+      INSERT INTO hostels (name, hostel_code, address)
+      VALUES ($1, $2, $3)
+      RETURNING hostel_id
+    `;
+    const hostelResult = await client.query(hostelQuery, [
+      hostelData.name,
+      hostelData.hostel_code,
+      hostelData.address,
+    ]);
+    const newHostelId = hostelResult.rows[0].hostel_id;
+
+    // 3. Hash Password
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
+    const passwordHash = await bcrypt.hash(adminData.password, saltRounds);
+
+    // 4. Insert Admin User
+    const adminQuery = `
+      INSERT INTO users (name, email, mobile, password_hash, role, hostel_id, is_active)
+      VALUES ($1, $2, $3, $4, 'admin', $5, TRUE)
+      RETURNING u_id, name, email
+    `;
+    const adminResult = await client.query(adminQuery, [
+      adminData.name,
+      adminData.email,
+      adminData.mobile,
+      passwordHash,
+      newHostelId,
+    ]);
+
+    // 5. Commit Transaction
+    await client.query('COMMIT');
+
+    return {
+      hostel_id: newHostelId,
+      admin: adminResult.rows[0],
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23505') { // Unique violation
+      throw createError(400, 'Hostel Code or Admin Email already exists.');
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================================================
+// Manage Hostel (Super Admin Only)
+// =============================================================================
+
+const getHostelDetails = async ({ admin, hostel_id }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') throw createError(403, 'Only Super Admin can view hostel details.');
+  
+  const hostelRes = await db.query('SELECT * FROM hostels WHERE hostel_id = $1', [hostel_id]);
+  if (hostelRes.rows.length === 0) throw createError(404, 'Hostel not found');
+  
+  const adminRes = await db.query('SELECT u_id, name, email, mobile, is_active FROM users WHERE role = $1 AND hostel_id = $2 LIMIT 1', ['admin', hostel_id]);
+  
+  return {
+    hostel: hostelRes.rows[0],
+    admin: adminRes.rows[0] || null
+  };
+};
+
+const updateHostel = async ({ admin, hostel_id, hostelData }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') throw createError(403, 'Only Super Admin can update hostels.');
+
+  const query = `
+    UPDATE hostels 
+    SET name = $1, hostel_code = $2, address = $3, rate_per_unit = $4
+    WHERE hostel_id = $5 RETURNING *
+  `;
+  const values = [hostelData.name, hostelData.hostel_code, hostelData.address, hostelData.rate_per_unit || 10.00, hostel_id];
+  const res = await db.query(query, values);
+  if (res.rows.length === 0) throw createError(404, 'Hostel not found');
+  return res.rows[0];
+};
+
+const updateHostelAdmin = async ({ admin, hostel_id, adminData }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') throw createError(403, 'Only Super Admin can update hostel admins.');
+
+  // get the admin u_id
+  const getAdmin = await db.query('SELECT u_id FROM users WHERE role = $1 AND hostel_id = $2 LIMIT 1', ['admin', hostel_id]);
+  if (getAdmin.rows.length === 0) throw createError(404, 'Admin not found for this hostel');
+  const u_id = getAdmin.rows[0].u_id;
+
+  let query, values;
+  if (adminData.password && adminData.password.trim() !== '') {
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
+    const passwordHash = await bcrypt.hash(adminData.password, saltRounds);
+    query = `UPDATE users SET name = $1, email = $2, mobile = $3, password_hash = $4 WHERE u_id = $5 RETURNING u_id, name, email, mobile`;
+    values = [adminData.name, adminData.email, adminData.mobile, passwordHash, u_id];
+  } else {
+    query = `UPDATE users SET name = $1, email = $2, mobile = $3 WHERE u_id = $4 RETURNING u_id, name, email, mobile`;
+    values = [adminData.name, adminData.email, adminData.mobile, u_id];
+  }
+  
+  const res = await db.query(query, values);
+  return res.rows[0];
+};
+
+const toggleHostelStatus = async ({ admin, hostel_id, is_active }) => {
+  assertAdmin(admin);
+  if (admin.role !== 'super_admin') throw createError(403, 'Only Super Admin can toggle hostel status.');
+
+  const query = `UPDATE hostels SET is_active = $1 WHERE hostel_id = $2 RETURNING *`;
+  const res = await db.query(query, [is_active, hostel_id]);
+  if (res.rows.length === 0) throw createError(404, 'Hostel not found');
+  return res.rows[0];
 };
 
 // =============================================================================
@@ -351,7 +572,7 @@ const getReports = async ({ admin, month, year }) => {
        AND EXTRACT(YEAR  FROM s.start_time) = $3
        AND s.status = 'completed'
      LEFT JOIN consumption_records cr ON cr.session_id = s.session_id
-     WHERE r.hostel_id = $1
+     WHERE ($1::int IS NULL OR r.hostel_id = $1)
      GROUP BY r.r_id, r.room_no, r.room_name
      ORDER BY total_cost DESC`,
     [admin.hostel_id, targetMonth, targetYear]
@@ -370,7 +591,7 @@ const getReports = async ({ admin, month, year }) => {
      JOIN sessions s ON s.session_id = cr.session_id
      JOIN rooms r ON r.r_id = s.r_id
      JOIN room_members rm ON rm.u_id = u.u_id AND rm.r_id = r.r_id
-     WHERE r.hostel_id = $1
+     WHERE ($1::int IS NULL OR r.hostel_id = $1)
        AND EXTRACT(MONTH FROM cr.recorded_at) = $2
        AND EXTRACT(YEAR  FROM cr.recorded_at) = $3
      GROUP BY u.u_id, u.name, u.email, r.room_no
@@ -390,12 +611,17 @@ const getReports = async ({ admin, month, year }) => {
 // =============================================================================
 // Gets all wallet transactions for the admin's hostel.
 //
-const getTransactions = async ({ admin, page = 1, limit = 7 }) => {
+const getTransactions = async ({ admin, page = 1, limit = 7, type, date, student }) => {
   assertAdmin(admin);
 
   const pageNum  = Math.max(1, parseInt(page, 10)  || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 7));
   const offset   = (pageNum - 1) * limitNum;
+  
+  // Normalize type filter
+  let dbTypes = null;
+  if (type === 'credit') dbTypes = ['recharge', 'refund'];
+  else if (type === 'deduction') dbTypes = ['consumption', 'adjustment'];
 
   const result = await db.query(
     `SELECT
@@ -408,10 +634,13 @@ const getTransactions = async ({ admin, page = 1, limit = 7 }) => {
      JOIN users u ON u.u_id = w.u_id
      JOIN room_members rm ON rm.u_id = u.u_id AND rm.left_at IS NULL
      JOIN rooms r ON r.r_id = rm.r_id
-     WHERE r.hostel_id = $1
+     WHERE ($1::int IS NULL OR r.hostel_id = $1)
+       AND ($4::text[] IS NULL OR wt.type = ANY($4::text[]))
+       AND ($5::date IS NULL OR wt.created_at::date = $5::date)
+       AND ($6::int IS NULL OR u.u_id = $6::int)
      ORDER BY wt.created_at DESC
      LIMIT $2 OFFSET $3`,
-    [admin.hostel_id, limitNum, offset]
+    [admin.hostel_id, limitNum, offset, dbTypes, date || null, student || null]
   );
 
   const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count, 10) : 0;
@@ -441,7 +670,7 @@ const getRoomDetails = async ({ admin, room_id }) => {
   assertAdmin(admin);
 
   const roomResult = await db.query(
-    `SELECT * FROM rooms WHERE r_id = $1 AND hostel_id = $2 LIMIT 1`,
+    `SELECT * FROM rooms WHERE r_id = $1 AND ($2::int IS NULL OR hostel_id = $2) LIMIT 1`,
     [room_id, admin.hostel_id]
   );
   if (roomResult.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
@@ -462,7 +691,7 @@ const getRoomDetails = async ({ admin, room_id }) => {
 const removeMemberFromRoom = async ({ admin, room_id, u_id }) => {
   assertAdmin(admin);
 
-  const roomCheck = await db.query(`SELECT r_id FROM rooms WHERE r_id = $1 AND hostel_id = $2`, [room_id, admin.hostel_id]);
+  const roomCheck = await db.query(`SELECT r_id FROM rooms WHERE r_id = $1 AND ($2::int IS NULL OR hostel_id = $2)`, [room_id, admin.hostel_id]);
   if (roomCheck.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
 
   const memberResult = await db.query(`SELECT rm_id, role FROM room_members WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`, [room_id, u_id]);
@@ -504,7 +733,7 @@ const removeMemberFromRoom = async ({ admin, room_id, u_id }) => {
 const inviteStudentToRoom = async ({ admin, room_id, identifier }) => {
   assertAdmin(admin);
 
-  const roomCheck = await db.query(`SELECT r_id, capacity FROM rooms WHERE r_id = $1 AND hostel_id = $2`, [room_id, admin.hostel_id]);
+  const roomCheck = await db.query(`SELECT r_id, capacity FROM rooms WHERE r_id = $1 AND ($2::int IS NULL OR hostel_id = $2)`, [room_id, admin.hostel_id]);
   if (roomCheck.rows.length === 0) throw createError(404, 'Room not found in your hostel.');
   const room = roomCheck.rows[0];
 
@@ -537,11 +766,19 @@ module.exports = {
   deductWallet,
   getStudents,
   getRooms,
+  createRoom,
+  toggleRoomStatus,
   getActiveSessions,
   getDashboardOverview,
+  getHostelsOverview,
+  createHostel,
   getReports,
   getTransactions,
   getRoomDetails,
   removeMemberFromRoom,
   inviteStudentToRoom,
+  getHostelDetails,
+  updateHostel,
+  updateHostelAdmin,
+  toggleHostelStatus,
 };

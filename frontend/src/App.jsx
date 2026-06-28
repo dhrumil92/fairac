@@ -24,6 +24,9 @@ import AdminRoomsPage from './pages/admin/AdminRoomsPage';
 import AdminReportsPage from './pages/admin/AdminReportsPage';
 import AdminWalletPage from './pages/admin/AdminWalletPage';
 import AdminSessionsPage from './pages/admin/AdminSessionsPage';
+import SuperAdminDashboardPage from './pages/admin/SuperAdminDashboardPage';
+import SuperAdminHostelsPage from './pages/admin/SuperAdminHostelsPage';
+import { useAuth } from './context/AuthContext';
 
 // Placeholder pages (will be replaced as we build each one)
 const ComingSoon = ({ title }) => (
@@ -44,6 +47,14 @@ const ScrollToTop = () => {
   }, [pathname]);
 
   return null;
+};
+
+const DashboardRouter = () => {
+  const { user } = useAuth();
+  if (user?.role === 'super_admin') {
+    return <SuperAdminDashboardPage />;
+  }
+  return <AdminDashboardPage />;
 };
 
 const App = () => {
@@ -82,7 +93,10 @@ const App = () => {
 
           {/* ── Admin Routes ── */}
           <Route path="/admin/dashboard" element={
-            <AdminRoute><AdminDashboardPage /></AdminRoute>
+            <AdminRoute><DashboardRouter /></AdminRoute>
+          } />
+          <Route path="/admin/hostels" element={
+            <AdminRoute><SuperAdminHostelsPage /></AdminRoute>
           } />
           <Route path="/admin/sessions" element={
             <AdminRoute><AdminSessionsPage /></AdminRoute>

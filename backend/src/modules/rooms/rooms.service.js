@@ -134,9 +134,9 @@ const getMyRoom = async (u_id) => {
   // Find the user's active room membership
   const membershipResult = await db.query(
     `SELECT rm.r_id, rm.role AS my_role, rm.joined_at,
-            r.room_no, r.room_name, r.capacity, r.rate_per_unit,
+            r.room_no, r.room_name, r.capacity, h.rate_per_unit AS rate_per_unit,
             r.hostel_id, h.name AS hostel_name,
-            r.created_by
+            r.created_by, r.is_active AS room_active, h.is_active AS hostel_active
      FROM room_members rm
      JOIN rooms r ON r.r_id = rm.r_id
      JOIN hostels h ON h.hostel_id = r.hostel_id
@@ -170,6 +170,8 @@ const getMyRoom = async (u_id) => {
     hostel_name:   room.hostel_name,
     my_role:       room.my_role,
     joined_at:     room.joined_at,
+    room_active:   room.room_active,
+    hostel_active: room.hostel_active,
     members:       membersResult.rows,
     members_count: membersResult.rows.length,
   };

@@ -53,13 +53,13 @@ const getWallet = async (u_id) => {
 //   Window function — counts total matching rows WITHOUT a second query.
 //   More efficient than running two separate COUNT and SELECT queries.
 //
-const getTransactions = async (u_id, { page = 1, limit = 20, type = null }) => {
+const getTransactions = async (u_id, { page = 1, limit = 20, type = null, date = null }) => {
   // Validate and sanitize pagination inputs
   const pageNum  = Math.max(1, parseInt(page, 10)  || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20)); // Cap at 100
   const offset   = (pageNum - 1) * limitNum;
 
-  // Build optional type filter
+  // Build optional filters
   const typeFilter = type ? `AND wt.type = '${type}'` : '';
 
   const result = await db.query(
@@ -81,9 +81,10 @@ const getTransactions = async (u_id, { page = 1, limit = 20, type = null }) => {
      LEFT JOIN sessions s ON s.session_id = wt.session_id
      LEFT JOIN rooms r ON r.r_id = s.r_id
      WHERE w.u_id = $1 ${typeFilter}
+       AND ($4::date IS NULL OR wt.created_at::date = $4::date)
      ORDER BY wt.created_at DESC
      LIMIT $2 OFFSET $3`,
-    [u_id, limitNum, offset]
+    [u_id, limitNum, offset, date || null]
   );
 
   const total     = result.rows.length > 0 ? parseInt(result.rows[0].total_count, 10) : 0;

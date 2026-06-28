@@ -10,27 +10,39 @@ import api from '../../api/axios';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
-  { path: '/dashboard',          icon: 'dashboard',               label: 'Dashboard' },
-  { path: '/room',               icon: 'meeting_room',            label: 'My Room' },
-  { path: '/sessions',           icon: 'history',                 label: 'Sessions' },
-  { path: '/wallet',             icon: 'account_balance_wallet',  label: 'Wallet' },
-  { path: '/profile',            icon: 'settings',                label: 'Settings' },
+  { path: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
+  { path: '/room', icon: 'meeting_room', label: 'My Room' },
+  { path: '/sessions', icon: 'history', label: 'Sessions' },
+  { path: '/wallet', icon: 'account_balance_wallet', label: 'Wallet' },
+  { path: '/profile', icon: 'settings', label: 'Settings' },
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { path: '/admin/dashboard',  icon: 'dashboard',              label: 'Dashboard' },
-  { path: '/admin/students',   icon: 'groups',                 label: 'Students' },
-  { path: '/admin/rooms',      icon: 'meeting_room',           label: 'Rooms' },
-  { path: '/admin/sessions',   icon: 'history',                label: 'Sessions' },
-  { path: '/admin/wallet',     icon: 'account_balance_wallet', label: 'Wallet Ops' },
-  { path: '/admin/reports',    icon: 'bar_chart',              label: 'Reports' },
+  { path: '/admin/dashboard', icon: 'dashboard', label: 'Dashboard' },
+  { path: '/admin/students', icon: 'groups', label: 'Students' },
+  { path: '/admin/rooms', icon: 'meeting_room', label: 'Rooms' },
+  { path: '/admin/sessions', icon: 'history', label: 'Sessions' },
+  { path: '/admin/wallet', icon: 'account_balance_wallet', label: 'Wallet Ops' },
+  { path: '/admin/reports', icon: 'bar_chart', label: 'Reports' },
 ];
 
 const Sidebar = () => {
-  const { pathname } = useLocation();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [hasActiveSession, setHasActiveSession] = useState(false);
+
+  // Custom tooltip state
+  const [isCopied, setIsCopied] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleCopyCode = () => {
+    if (user?.hostel_code) {
+      navigator.clipboard.writeText(user.hostel_code);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) {
@@ -48,14 +60,18 @@ const Sidebar = () => {
           setHasActiveSession(false);
         }
       };
-      
+
       checkSession();
       const interval = setInterval(checkSession, 10000); // Check every 10s
       return () => clearInterval(interval);
     }
   }, [isAdmin]);
 
-  const navItems = isAdmin ? ADMIN_NAV_ITEMS : NAV_ITEMS;
+  const navItems = [...(isAdmin ? ADMIN_NAV_ITEMS : NAV_ITEMS)];
+
+  if (user?.role === 'super_admin') {
+    navItems.splice(1, 0, { path: '/admin/hostels', icon: 'domain', label: 'Hostels' });
+  }
 
   return (
     <aside className="sidebar">
@@ -66,10 +82,61 @@ const Sidebar = () => {
         </div>
         <div>
           <h2 className="sidebar-logo-text">FairAC</h2>
-          <p className="sidebar-logo-sub">Student Billing</p>
-          {isAdmin && <p className="sidebar-logo-sub" style={{ fontSize: '9px', color: '#00D4AA', marginTop: '2px', fontWeight: 'bold' }}>{user?.hostel_name}</p>}
+          {isAdmin && (
+            <>
+              <p className="sidebar-logo-sub" style={{ fontSize: '15px', color: '#00D4AA', marginTop: '2px', fontWeight: 'bold' }}>{user?.hostel_name}</p>
+              <div
+                style={{ position: 'relative', display: 'block' }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => {
+                  setIsHovered(false);
+                  setTimeout(() => setIsCopied(false), 300); // Wait for transition to finish before resetting text
+                }}
+              >
+                <p
+                  className="sidebar-logo-sub"
+                  style={{ fontSize: '12px', color: '#94A3B8', marginTop: '1px', cursor: 'pointer', transition: 'color 0.2s', ...(isHovered ? { color: '#ffffff' } : {}) }}
+                  onClick={handleCopyCode}
+                >
+                  {user?.hostel_code}
+                </p>
+                {/* Custom Tooltip */}
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: '0',
+                  marginTop: '8px',
+                  padding: '6px 12px',
+                  backgroundColor: '#6C63FF',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  borderRadius: '6px',
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  opacity: isHovered ? 1 : 0,
+                  transform: isHovered ? 'translateY(0)' : 'translateY(-4px)',
+                  transition: 'opacity 0.2s ease, transform 0.2s ease',
+                  zIndex: 50,
+                  boxShadow: '0 4px 12px rgba(108, 99, 255, 0.3)'
+                }}>
+                  {isCopied ? 'Copied to clipboard!' : 'Copy Secret Code'}
+                  {/* Little triangle arrow */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '12px',
+                    width: 0,
+                    height: 0,
+                    borderLeft: '4px solid transparent',
+                    borderRight: '4px solid transparent',
+                    borderBottom: '4px solid #6C63FF'
+                  }}></div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
-        {isAdmin && <span className="sidebar-admin-badge">Admin</span>}
       </div>
 
       {/* ── Start Session Action ── */}
@@ -94,7 +161,7 @@ const Sidebar = () => {
       {/* ── Navigation ── */}
       <nav className="sidebar-nav">
         {navItems.map(({ path, icon, label }) => {
-          const isActive = pathname === path || (path !== '/dashboard' && path !== '/admin/dashboard' && pathname.startsWith(path));
+          const isActive = location.pathname === path || (path !== '/dashboard' && path !== '/admin/dashboard' && location.pathname.startsWith(path));
           return (
             <Link
               key={path}
@@ -111,12 +178,12 @@ const Sidebar = () => {
       {/* ── Bottom Actions ── */}
       <div className="sidebar-footer">
         <div className="sidebar-divider"></div>
-        
+
         <Link to="#" className="sidebar-bottom-link">
           <span className="material-symbols-outlined">contact_support</span>
           <span>Support</span>
         </Link>
-        
+
         <button className="sidebar-bottom-link" onClick={logout}>
           <span className="material-symbols-outlined">logout</span>
           <span>Logout</span>

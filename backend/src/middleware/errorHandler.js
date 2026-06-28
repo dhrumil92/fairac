@@ -27,14 +27,19 @@
 // =============================================================================
 
 const errorHandler = (err, req, res, next) => {
-  // Log the full error internally (visible only on server logs)
-  console.error(`❌ [${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-  console.error(err.stack || err.message);
-
   // Determine the HTTP status code
   // If the error object has a `statusCode` property (set by us), use it.
   // Otherwise default to 500 (Internal Server Error)
   const statusCode = err.statusCode || 500;
+
+  // Log the error internally (visible only on server logs)
+  if (statusCode >= 500) {
+    console.error(`❌ [${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    console.error(err.stack || err.message);
+  } else if (statusCode !== 404) {
+    // For 4xx errors, just log the message without the stack trace, and ignore 404s
+    console.warn(`⚠️ [${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${err.message}`);
+  }
 
   // Build a clean error response
   const response = {

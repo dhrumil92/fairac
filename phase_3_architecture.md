@@ -114,3 +114,20 @@ In Phase 3, we will write the live telemetry data to Redis. Redis operates entir
 | **DB Write Operations** | Every 10s per device | Only at start/end of session |
 
 By implementing this architecture in Phase 3, FairAC will transition from a functional prototype to an enterprise-grade IoT platform capable of deployment across entire university campuses.
+
+---
+
+## 4. Hardware & IoT Future Plans
+
+Based on field requirements and robust edge-computing needs, the following hardware upgrades are planned for the ESP32 devices:
+
+### 4.1 Offline Resilience (Push-Button Start)
+In the worst-case scenario where the backend server or hostel internet is down, students should not be locked out of the AC. 
+- **Implementation:** A physical push-button on the ESP32 hardware will allow manual override to power the AC. 
+- **Data Logging:** The ESP32 will store the consumed electricity data locally (in NVS/SPIFFS/LittleFS).
+- **Syncing:** Once the server connection is restored, the ESP32 will push the bulk offline usage data to the server (e.g., via `/api/v1/iot/offline-sync`) to correctly bill the student, ensuring zero revenue loss while maintaining high availability for users.
+
+### 4.2 BLE WiFi Provisioning
+Currently, WiFi credentials (SSID and password) are hardcoded into the ESP32 firmware. If a hostel owner changes their router or ISP, all devices would go offline and require manual reprogramming via USB.
+- **Implementation:** Utilize the ESP32 `WiFiProv` (WiFi Provisioning via BLE) framework. 
+- **User Experience:** Students or Admins can use a FairAC mobile app (or a web Bluetooth interface) to connect to the ESP32 via Bluetooth and securely transmit the new WiFi credentials. The ESP32 will save them to non-volatile memory, completely removing the need for hardcoded credentials.

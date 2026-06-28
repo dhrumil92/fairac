@@ -55,8 +55,8 @@ const getActiveSession = async (req, res, next) => {
 // GET /api/v1/sessions/my
 const getMySessionHistory = async (req, res, next) => {
   try {
-    const { page = 1, limit = 7 } = req.query;
-    const data = await sessionsService.getMySessionHistory(req.user.u_id, { page, limit });
+    const { page = 1, limit = 7, type, date } = req.query;
+    const data = await sessionsService.getMySessionHistory(req.user.u_id, { page, limit, type, date });
     res.status(200).json({ success: true, data });
   } catch (err) { next(err); }
 };

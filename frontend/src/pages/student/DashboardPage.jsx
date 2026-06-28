@@ -33,7 +33,7 @@ const Skeleton = ({ className }) => (
 );
 
 const DashboardPage = () => {
-  const { user, fetchMe } = useAuth();
+  const { user, fetchMe, login } = useAuth();
   const navigate = useNavigate();
   
   const [joinCode, setJoinCode] = useState('');
@@ -46,8 +46,13 @@ const DashboardPage = () => {
     setIsJoining(true);
     setJoinError('');
     try {
-      await api.post('/auth/join-hostel', { secret_code: joinCode });
-      await fetchMe();
+      const res = await api.post('/auth/join-hostel', { secret_code: joinCode });
+      if (res.data?.data?.token) {
+        login(res.data.data.token, res.data.data.user);
+      } else {
+        await fetchMe();
+      }
+      await fetchDashboardData();
       setToastMessage('Hostel joined successfully!');
     } catch (err) {
       setJoinError(err.response?.data?.message || 'Failed to join hostel.');
@@ -440,6 +445,20 @@ const DashboardPage = () => {
           </div>
         ))}
 
+        {/* ── Deactivated Banners ── */}
+        {roomInfo && roomInfo.hostel_active === false && (
+          <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="material-symbols-outlined">gpp_bad</span>
+            <strong>This hostel is currently deactivated. AC sessions cannot be started.</strong>
+          </div>
+        )}
+        {roomInfo && roomInfo.hostel_active !== false && roomInfo.room_active === false && (
+          <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="material-symbols-outlined">block</span>
+            <strong>Your room is currently deactivated. AC sessions cannot be started.</strong>
+          </div>
+        )}
+
         {/* ── Pending Leave Requests Banner ── */}
         {activeSession && activeSession.status === 'active' && myParticipant?.status === 'accepted' &&
           activeSession.participants.filter(p => p.leave_status === 'pending' && Number(p.u_id) !== Number(user.u_id)).map(leaver => (
@@ -616,14 +635,27 @@ const DashboardPage = () => {
                 <h3>No Active Session</h3>
                 <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button onClick={handleQuickStartSession} style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: '#00D4AA', color: '#0F1729', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'} onMouseOut={(e) => e.currentTarget.style.opacity = '1'}>
+                  <button 
+                    onClick={handleQuickStartSession} 
+                    disabled={roomInfo?.room_active === false || roomInfo?.hostel_active === false}
+                    style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? '#334155' : '#00D4AA', color: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? '#94A3B8' : '#0F1729', fontWeight: 'bold', cursor: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }} 
+                    onMouseOver={(e) => { if (roomInfo?.room_active !== false && roomInfo?.hostel_active !== false) e.currentTarget.style.opacity = '0.9'; }} 
+                    onMouseOut={(e) => { if (roomInfo?.room_active !== false && roomInfo?.hostel_active !== false) e.currentTarget.style.opacity = '1'; }}
+                  >
                     <span className="material-symbols-outlined">play_arrow</span>
                     Quick Start (1.5 hr)
                   </button>
-                  <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-symbols-outlined">tune</span>
-                    Advanced Options
-                  </Link>
+                  {roomInfo?.room_active === false || roomInfo?.hostel_active === false ? (
+                    <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
+                      <span className="material-symbols-outlined">tune</span>
+                      Advanced Options
+                    </div>
+                  ) : (
+                    <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="material-symbols-outlined">tune</span>
+                      Advanced Options
+                    </Link>
+                  )}
                 </div>
               </div>
             )}

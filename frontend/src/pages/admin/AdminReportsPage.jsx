@@ -36,47 +36,49 @@ const AdminReportsPage = () => {
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
-      <main className="page-main" style={{ padding: '40px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
-          {/* Header */}
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ fontSize: '30px', fontWeight: 'bold', fontFamily: '"Plus Jakarta Sans", sans-serif', color: 'white' }}>Analytics & Reports</h2>
-              <p style={{ color: '#94A3B8', fontSize: '14px' }}>Analyze power consumption and revenue trends.</p>
+      <main className="page-main" style={{ padding: '0' }}>
+        
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">Analytics & Reports</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">Analyze power consumption and revenue trends.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            
+            {/* Date Filters */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select 
+                value={month} 
+                onChange={e => setMonth(parseInt(e.target.value))}
+                style={{ padding: '8px 16px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', outline: 'none' }}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m} style={{ backgroundColor: '#0F1729' }}>
+                    {new Date(0, m - 1).toLocaleString('default', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
+              <select 
+                value={year} 
+                onChange={e => setYear(parseInt(e.target.value))}
+                style={{ padding: '8px 16px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer', outline: 'none' }}
+              >
+                {[currentDate.getFullYear() - 1, currentDate.getFullYear()].map(y => (
+                  <option key={y} value={y} style={{ backgroundColor: '#0F1729' }}>{y}</option>
+                ))}
+              </select>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              
-              {/* Date Filters */}
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <select 
-                  value={month} 
-                  onChange={e => setMonth(parseInt(e.target.value))}
-                  style={{ padding: '10px 16px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m} style={{ backgroundColor: '#0F1729' }}>
-                      {new Date(0, m - 1).toLocaleString('default', { month: 'long' })}
-                    </option>
-                  ))}
-                </select>
-                <select 
-                  value={year} 
-                  onChange={e => setYear(parseInt(e.target.value))}
-                  style={{ padding: '10px 16px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', cursor: 'pointer' }}
-                >
-                  {[currentDate.getFullYear(), currentDate.getFullYear() - 1].map(y => (
-                    <option key={y} value={y} style={{ backgroundColor: '#0F1729' }}>{y}</option>
-                  ))}
-                </select>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '6px 12px', backgroundColor: '#1A2540', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#6C63FF' }}>admin_panel_settings</span>
-                <span style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>{user?.name}</span>
-              </div>
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 rounded-full border border-white/10">
+              <span className="material-symbols-outlined text-sm text-slate-400">admin_panel_settings</span>
+              <span className="text-sm font-medium text-white">{user?.name} {user?.role === 'super_admin' ? '(Super Admin)' : '(Admin)'}</span>
             </div>
-          </header>
+          </div>
+        </header>
+
+        <div style={{ padding: '0 40px 40px' }}>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
           {error && <div style={{ padding: '16px', backgroundColor: 'rgba(255,107,107,0.1)', color: '#FF6B6B', borderRadius: '12px' }}>{error}</div>}
 
@@ -161,6 +163,7 @@ const AdminReportsPage = () => {
             </div>
           </div>
           
+          </div>
         </div>
       </main>
     </div>

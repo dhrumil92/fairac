@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
@@ -22,12 +22,31 @@ const SessionPage = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
 
+  const [filterType, setFilterType] = useState('all');
+  const [filterDate, setFilterDate] = useState('');
+  const [isFilterPopupOpen, setIsFilterPopupOpen] = useState(false);
+  const filterPopupRef = useRef(null);
+  const portalFilterPopupRef = useRef(null);
+
   // Start Form States
   const [sessionType, setSessionType] = useState('duration');
   const [targetValue, setTargetValue] = useState('1.5');
 
   // Real-time counter
   const [elapsedText, setElapsedText] = useState('00:00:00');
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        filterPopupRef.current && 
+        !filterPopupRef.current.contains(event.target)
+      ) {
+        setIsFilterPopupOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const clearMessages = () => {
     setError('');
@@ -44,7 +63,7 @@ const SessionPage = () => {
       const [roomRes, activeRes, recentRes, walletRes] = await Promise.allSettled([
         api.get('/rooms/my'),
         api.get('/sessions/active'),
-        api.get(`/sessions/my?page=${page}&limit=7`),
+        api.get(`/sessions/my?page=${page}&limit=7${filterType !== 'all' ? `&type=${filterType}` : ''}${filterDate ? `&date=${filterDate}` : ''}`),
         api.get('/wallet')
       ]);
 
@@ -77,7 +96,7 @@ const SessionPage = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSessionData();
-  }, [page]);
+  }, [page, filterType, filterDate]);
 
   useEffect(() => {
     if (window.location.hash === '#history' && !loading) {
@@ -348,6 +367,20 @@ const SessionPage = () => {
             </div>
           ) : (
             <>
+              {/* ── Deactivated Banners ── */}
+              {myRoom && myRoom.hostel_active === false && (
+                <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined">gpp_bad</span>
+                  <strong>This hostel is currently deactivated. AC sessions cannot be started.</strong>
+                </div>
+              )}
+              {myRoom && myRoom.hostel_active !== false && myRoom.room_active === false && (
+                <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined">block</span>
+                  <strong>Your room is currently deactivated. AC sessions cannot be started.</strong>
+                </div>
+              )}
+
               {/* 3. Pending Leave Requests Banner */}
               {activeSession && activeSession.status === 'active' && myParticipant?.status === 'accepted' && (
                 activeSession.participants.filter(p => p.leave_status === 'pending' && Number(p.u_id) !== Number(user.u_id)).map(leaver => (
@@ -425,9 +458,10 @@ const SessionPage = () => {
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Session Duration</label>
                             <div className="relative">
                               <select
-                                className="w-full bg-[#0F1729] !bg-none border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent outline-none appearance-none cursor-pointer"
+                                className="w-full bg-[#0F1729] !bg-none border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 style={{ colorScheme: 'dark' }}
                                 value={sessionType}
+                                disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setSessionType(val);
@@ -459,15 +493,24 @@ const SessionPage = () => {
                                 min={sessionType === 'budget' ? '10' : '0.5'}
                                 className="w-full bg-[#0F1729] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] outline-none"
                                 value={targetValue}
+                                disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
                                 onChange={(e) => setTargetValue(e.target.value)}
                                 placeholder={sessionType === 'duration' ? 'e.g. 2.5' : sessionType === 'budget' ? 'e.g. 50' : 'e.g. 2.5'}
                               />
                             </div>
                           )}
 
-                          <button type="submit" className={`w-full py-4 bg-[#6C63FF] text-white font-bold rounded-xl shadow-lg ${glowPrimary} flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all`}>
+                          <button 
+                            type="submit" 
+                            disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
+                            className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                              (myRoom?.room_active === false || myRoom?.hostel_active === false) 
+                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                              : 'bg-[#00D4AA] text-[#0F1729] hover:bg-[#00E6B8] hover:shadow-[0_0_20px_rgba(0,212,170,0.4)]'
+                            }`}
+                          >
                             <span className="material-symbols-outlined">bolt</span>
-                            Start Session
+                            Start Session Now
                           </button>
                           <p className="text-[11px] text-slate-500 text-center px-4">
                             Current room rate: <span className="text-slate-300 font-semibold">₹{myRoom.rate_per_unit}/unit</span>.
@@ -700,9 +743,81 @@ const SessionPage = () => {
           )}
 
           {/* ── Session History Table ── */}
-          <section id="history" className="table-section glass-card" style={{ marginTop: '24px' }}>
-            <div className="table-header">
+          <section id="history" className="table-section glass-card" style={{ marginTop: '24px', overflow: 'visible' }}>
+            <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="section-heading">All Session History</h2>
+              
+              <div ref={filterPopupRef} style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setIsFilterPopupOpen(!isFilterPopupOpen)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
+                    backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>filter_list</span>
+                  Filter
+                </button>
+                {isFilterPopupOpen && (
+                  <div
+                    style={{
+                      position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+                      width: '240px', backgroundColor: '#0F1729', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '12px', zIndex: 99, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '16px',
+                      display: 'flex', flexDirection: 'column', gap: '16px'
+                    }}
+                  >
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#8892B0', marginBottom: '8px', fontWeight: 'bold' }}>BOOKING TYPE</label>
+                      <select
+                        value={filterType}
+                        onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
+                        style={{
+                          width: '100%', padding: '8px 12px', backgroundColor: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', fontSize: '14px', outline: 'none'
+                        }}
+                      >
+                        <option value="all" style={{ backgroundColor: '#0F1729', color: 'white' }}>All Types</option>
+                        <option value="unlimited" style={{ backgroundColor: '#0F1729', color: 'white' }}>Unlimited</option>
+                        <option value="budget" style={{ backgroundColor: '#0F1729', color: 'white' }}>Budget</option>
+                        <option value="duration" style={{ backgroundColor: '#0F1729', color: 'white' }}>Duration</option>
+                        <option value="unit" style={{ backgroundColor: '#0F1729', color: 'white' }}>Unit</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#8892B0', marginBottom: '8px', fontWeight: 'bold' }}>DATE</label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="date"
+                          value={filterDate}
+                          onChange={(e) => { setFilterDate(e.target.value); setPage(1); }}
+                          style={{
+                            width: '100%', padding: '8px 12px', backgroundColor: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', fontSize: '14px', outline: 'none',
+                            colorScheme: 'dark'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFilterType('all');
+                        setFilterDate('');
+                        setPage(1);
+                        setIsFilterPopupOpen(false);
+                      }}
+                      style={{
+                        width: '100%', padding: '8px', backgroundColor: 'rgba(255,107,107,0.1)',
+                        border: '1px solid rgba(255,107,107,0.2)', borderRadius: '8px', color: '#FF6B6B',
+                        fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                      }}
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {loading ? (

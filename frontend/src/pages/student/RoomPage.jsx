@@ -209,7 +209,12 @@ const RoomPage = () => {
                       <span className="material-symbols-outlined" style={{ color: '#6C63FF', fontSize: '18px' }}>apartment</span>
                       <span className="hostel-subtitle">{room.hostel_name || 'Hostel'}</span>
                     </div>
-                    <div className="room-main-title">{room.room_name || `Room ${room.room_no}`}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="room-main-title" style={{ margin: 0 }}>{room.room_name || `Room ${room.room_no}`}</div>
+                      <span style={{ padding: '4px 8px', borderRadius: '9999px', backgroundColor: room.room_active ? 'rgba(0, 212, 170, 0.1)' : 'rgba(255, 107, 107, 0.1)', color: room.room_active ? '#00D4AA' : '#FF6B6B', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                        {room.room_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                   </div>
                   <div className="room-stats-grid">
                     <div className="stat-group">

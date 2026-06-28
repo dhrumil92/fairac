@@ -80,15 +80,25 @@ const startSession = async ({
   // Rule 1: Must be a room member
   await assertRoomMember(u_id, r_id);
 
-  // Fetch rate_per_unit from the room (snapshot for this session)
+  // Fetch rate_per_unit from the hostel (snapshot for this session)
   const roomResult = await db.query(
-    `SELECT rate_per_unit FROM rooms WHERE r_id = $1 AND is_active = TRUE`,
+    `SELECT h.rate_per_unit, h.is_active AS hostel_active, r.is_active AS room_active
+     FROM rooms r 
+     JOIN hostels h ON h.hostel_id = r.hostel_id 
+     WHERE r.r_id = $1`,
     [r_id]
   );
   if (roomResult.rows.length === 0) {
-    throw createError(404, 'Room not found or inactive.');
+    throw createError(404, 'Room not found.');
   }
-  const rate_per_unit = roomResult.rows[0].rate_per_unit;
+  
+  const { rate_per_unit, hostel_active, room_active } = roomResult.rows[0];
+  if (!room_active) {
+    throw createError(403, 'Your room is deactivated, cannot start AC.');
+  }
+  if (!hostel_active) {
+    throw createError(403, 'This hostel is currently inactive. New AC sessions cannot be started.');
+  }
 
   // Validate target_value is provided for non-unlimited sessions
   if (session_type !== 'unlimited' && (target_value === null || target_value <= 0)) {
@@ -242,13 +252,15 @@ const getSessionById = async (session_id) => {
 // =============================================================================
 // Returns all sessions the caller has participated in (as creator or participant).
 //
-const getMySessionHistory = async (u_id, { page = 1, limit = 7 } = {}) => {
+const getMySessionHistory = async (u_id, { page = 1, limit = 7, type = null, date = null } = {}) => {
   const offset = (page - 1) * limit;
 
   const countResult = await db.query(
     `SELECT COUNT(*) FROM sessions s
-     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1`,
-    [u_id]
+     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
+     WHERE ($2::text IS NULL OR s.session_type = $2::text)
+       AND ($3::date IS NULL OR s.start_time::date = $3::date)`,
+    [u_id, type || null, date || null]
   );
   const total = parseInt(countResult.rows[0].count, 10);
   const total_pages = Math.ceil(total / limit);
@@ -272,9 +284,11 @@ const getMySessionHistory = async (u_id, { page = 1, limit = 7 } = {}) => {
      JOIN rooms r ON r.r_id = s.r_id
      JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
      LEFT JOIN consumption_records cr ON cr.session_id = s.session_id AND cr.u_id = $1
+     WHERE ($2::text IS NULL OR s.session_type = $2::text)
+       AND ($3::date IS NULL OR s.start_time::date = $3::date)
      ORDER BY s.start_time DESC
-     LIMIT $2 OFFSET $3`,
-    [u_id, limit, offset]
+     LIMIT $4 OFFSET $5`,
+    [u_id, type || null, date || null, limit, offset]
   );
   
   return {

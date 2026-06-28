@@ -48,15 +48,24 @@ const AdminSessionsPage = () => {
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
-      <main className="page-main" style={{ padding: '40px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ fontSize: '30px', fontWeight: 'bold', fontFamily: '"Plus Jakarta Sans", sans-serif', color: 'white' }}>Active Sessions</h2>
-              <p style={{ color: '#94A3B8', fontSize: '14px' }}>Monitor and manage live AC sessions across the hostel.</p>
+      <main className="page-main" style={{ padding: '0' }}>
+        
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">Active Sessions</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">Monitor and manage live AC sessions across the hostel.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 rounded-full border border-white/10">
+              <span className="material-symbols-outlined text-sm text-slate-400">admin_panel_settings</span>
+              <span className="text-sm font-medium text-white">{user?.name} (Admin)</span>
             </div>
-          </header>
+          </div>
+        </header>
+
+        <div style={{ padding: '0 40px 40px' }}>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
           {error && <Toast message={error} type="error" onClose={() => setError('')} />}
           {toastMessage && <Toast message={toastMessage} type="success" onClose={() => setToastMessage(null)} />}
@@ -97,7 +106,9 @@ const AdminSessionsPage = () => {
           </div>
           
         </div>
-      </main>
+      </div>
+    </main>
+
 
       {confirmStopId && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>

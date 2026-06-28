@@ -189,11 +189,12 @@ const joinHostel = async (req, res, next) => {
   try {
     if (handleValidationErrors(req, res)) return;
     const { secret_code } = req.body;
-    const user = await authService.joinHostel(req.user.u_id, secret_code);
+    const { user, token } = await authService.joinHostel(req.user.u_id, secret_code);
+    
     res.status(200).json({
       success: true,
-      message: 'Hostel joined successfully.',
-      data: { user },
+      message: 'Joined hostel successfully.',
+      data: { user, token },
     });
   } catch (err) {
     next(err);

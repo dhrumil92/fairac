@@ -144,6 +144,7 @@ const registerStudent = async ({ name, email, mobile, password, secret_code }) =
         email:      newUser.email,
         mobile:     newUser.mobile,
         role:       newUser.role,
+        hostel_id:  newUser.hostel_id,
         created_at: newUser.created_at,
       },
       token,
@@ -182,7 +183,7 @@ const loginUser = async ({ identifier, password }) => {
   // `identifier` is whatever the user typed — could be email or mobile number.
   // We check both columns in one query.
   const userResult = await db.query(
-    `SELECT u.u_id, u.name, u.email, u.mobile, u.password_hash, u.role, u.hostel_id, u.is_active, h.name AS hostel_name
+    `SELECT u.u_id, u.name, u.email, u.mobile, u.password_hash, u.role, u.hostel_id, u.is_active, h.name AS hostel_name, h.hostel_code
      FROM users u
      LEFT JOIN hostels h ON h.hostel_id = u.hostel_id
      WHERE u.email = $1 OR u.mobile = $1
@@ -224,6 +225,7 @@ const loginUser = async ({ identifier, password }) => {
       role:        user.role,
       hostel_id:   user.hostel_id,
       hostel_name: user.hostel_name,
+      hostel_code: user.hostel_code,
     },
     token,
   };
@@ -240,7 +242,7 @@ const loginUser = async ({ identifier, password }) => {
 //
 const getMe = async (u_id) => {
   const result = await db.query(
-    `SELECT u.u_id, u.name, u.email, u.mobile, u.role, u.hostel_id, u.is_active, u.created_at, h.name AS hostel_name
+    `SELECT u.u_id, u.name, u.email, u.mobile, u.role, u.hostel_id, u.is_active, u.created_at, h.name AS hostel_name, h.hostel_code
      FROM users u
      LEFT JOIN hostels h ON h.hostel_id = u.hostel_id
      WHERE u.u_id = $1`,
@@ -372,8 +374,11 @@ const joinHostel = async (u_id, hostel_code) => {
     
     await client.query('COMMIT');
     
-    const finalResult = await db.query(`SELECT u_id, name, email, mobile, role, hostel_id FROM users WHERE u_id = $1`, [u_id]);
-    return finalResult.rows[0];
+    const finalResult = await client.query(`SELECT u_id, name, email, mobile, role, hostel_id FROM users WHERE u_id = $1`, [u_id]);
+    const user = finalResult.rows[0];
+    const token = generateToken(user);
+    
+    return { user, token };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

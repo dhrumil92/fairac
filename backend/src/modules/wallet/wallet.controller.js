@@ -41,11 +41,12 @@ const getWallet = async (req, res, next) => {
 // Query params: ?page=1&limit=20&type=consumption
 const getTransactions = async (req, res, next) => {
   try {
-    const { page, limit, type } = req.query;
+    const { page, limit, type, date } = req.query;
     const result = await walletService.getTransactions(req.user.u_id, {
       page,
       limit,
       type,
+      date,
     });
 
     res.status(200).json({ success: true, data: result });

@@ -76,31 +76,33 @@ const AdminDashboardPage = () => {
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
-      <main className="page-main" style={{ padding: '40px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
-          {/* Header */}
-          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ fontSize: '30px', fontWeight: 'bold', fontFamily: '"Plus Jakarta Sans", sans-serif', color: 'white' }}>Admin Overview</h2>
-              <p style={{ color: '#94A3B8', fontSize: '14px' }}>Welcome back. Here is what's happening with the system today.</p>
+      <main className="page-main" style={{ padding: '0' }}>
+        
+        {/* Top Navigation Bar */}
+        <header className="flex justify-between items-center px-8 py-4 w-full sticky top-0 z-40 bg-[#0F1729]/80 backdrop-blur-md border-b border-white/10" style={{ marginBottom: '24px' }}>
+          <div className="flex flex-col gap-1" style={{ marginLeft: '16px' }}>
+            <h2 className="font-headline text-2xl font-bold text-white tracking-tight m-0 leading-none">Admin Overview</h2>
+            <p className="text-slate-400 text-sm m-0 mt-1 leading-none">Welcome back. Here is what's happening with the system today.</p>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-800/50 rounded-full border border-white/10">
+              <span className="material-symbols-outlined text-sm text-slate-400">admin_panel_settings</span>
+              <span className="text-sm font-medium text-white">{user?.name}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '6px 12px', backgroundColor: '#1A2540', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}>
-                <span className="material-symbols-outlined" style={{ color: '#6C63FF' }}>admin_panel_settings</span>
-                <span style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>{user?.name}</span>
-              </div>
-            </div>
-          </header>
+          </div>
+        </header>
 
+        <div style={{ padding: '0 40px 40px' }}>
+          <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          
           {error && <Toast message={error} type="error" onClose={() => setError('')} />}
           {toastMessage && <Toast message={toastMessage} type="success" onClose={() => setToastMessage(null)} />}
 
           {/* Top Stat Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
-            <StatCard icon="group" title="Total Students" value={overview?.total_students || 0} color="#6C63FF" />
-            <StatCard icon="meeting_room" title="Total Rooms" value={overview?.total_rooms || 0} color="#F59E0B" />
-            <StatCard icon="bolt" title="Active Sessions" value={overview?.active_sessions || 0} color="#6C63FF" highlight />
+            <StatCard icon="group" title="Total Students" value={overview?.total_students || 0} color="#6C63FF" onClick={() => navigate('/admin/students')} />
+            <StatCard icon="meeting_room" title="Total Rooms" value={overview?.total_rooms || 0} color="#F59E0B" onClick={() => navigate('/admin/rooms')} />
+            <StatCard icon="bolt" title="Active Sessions" value={overview?.active_sessions || 0} color="#6C63FF" highlight onClick={() => navigate('/admin/sessions')} />
             <StatCard icon="energy_savings_leaf" title="Monthly Power (kWh)" value={overview?.total_units_consumed || 0} color="#06B6D4" />
             <StatCard icon="payments" title="Total Billed" value={`₹${overview?.total_billed || 0}`} color="#00D4AA" />
             <StatCard icon="account_balance" title="Wallet Pool" value={`₹${overview?.total_recharged || 0}`} color="#6366F1" />
@@ -261,8 +263,8 @@ const AdminDashboardPage = () => {
 
             </div>
           </div>
-
         </div>
+      </div>
       </main>
 
       {confirmStopId && (
@@ -287,8 +289,20 @@ const AdminDashboardPage = () => {
   );
 };
 
-const StatCard = ({ icon, title, value, color, highlight }) => (
-  <div className="glass-card" style={{ padding: '24px', borderRadius: '16px', borderLeft: highlight ? `2px solid ${color}` : 'none' }}>
+const StatCard = ({ icon, title, value, color, highlight, onClick }) => (
+  <div 
+    className="glass-card" 
+    style={{ 
+      padding: '24px', 
+      borderRadius: '16px', 
+      borderLeft: highlight ? `2px solid ${color}` : 'none',
+      cursor: onClick ? 'pointer' : 'default',
+      transition: 'all 0.2s ease'
+    }}
+    onClick={onClick}
+    onMouseOver={onClick ? e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.transform = 'scale(1.02)'; } : undefined}
+    onMouseOut={onClick ? e => { e.currentTarget.style.background = 'rgba(26, 37, 64, 0.4)'; e.currentTarget.style.transform = 'scale(1)'; } : undefined}
+  >
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
       <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: `${color}1A`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
         <span className="material-symbols-outlined">{icon}</span>

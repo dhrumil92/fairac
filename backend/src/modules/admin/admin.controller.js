@@ -81,6 +81,35 @@ const getRooms = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// POST /api/v1/admin/rooms
+const createRoom = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { room_no, room_name, capacity } = req.body;
+    const room = await adminService.createRoom({
+      admin: req.user,
+      room_no,
+      room_name,
+      capacity,
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Room created successfully',
+      data: { room },
+    });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/admin/rooms/:id/toggle-status
+const toggleRoomStatus = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { is_active } = req.body;
+    const result = await adminService.toggleRoomStatus({ admin: req.user, room_id: req.params.id, is_active });
+    res.status(200).json({ success: true, message: `Room ${is_active ? 'activated' : 'deactivated'} successfully`, data: result });
+  } catch (err) { next(err); }
+};
+
 // GET /api/v1/admin/sessions/active
 const getActiveSessions = async (req, res, next) => {
   try {
@@ -97,6 +126,66 @@ const getDashboard = async (req, res, next) => {
   try {
     const overview = await adminService.getDashboardOverview({ admin: req.user });
     res.status(200).json({ success: true, data: { overview } });
+  } catch (err) { next(err); }
+};
+
+// GET /api/v1/admin/hostels
+const getHostels = async (req, res, next) => {
+  try {
+    const hostels = await adminService.getHostelsOverview({ admin: req.user });
+    res.status(200).json({ success: true, data: hostels });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/admin/hostels
+const addHostel = async (req, res, next) => {
+  try {
+    const { hostel_code, hostel_name, address, admin_name, admin_mobile, admin_email, admin_password } = req.body;
+    
+    if (!hostel_code || !hostel_name || !admin_name || !admin_mobile || !admin_email || !admin_password) {
+      return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    }
+
+    const result = await adminService.createHostel({
+      admin: req.user,
+      hostelData: { hostel_code, name: hostel_name, address },
+      adminData: { name: admin_name, email: admin_email, mobile: admin_mobile, password: admin_password }
+    });
+
+    res.status(201).json({ success: true, message: 'Hostel created successfully', data: result });
+  } catch (err) { next(err); }
+};
+
+// GET /api/v1/admin/hostels/:id
+const getHostelDetails = async (req, res, next) => {
+  try {
+    const details = await adminService.getHostelDetails({ admin: req.user, hostel_id: req.params.id });
+    res.status(200).json({ success: true, data: details });
+  } catch (err) { next(err); }
+};
+
+// PUT /api/v1/admin/hostels/:id
+const updateHostel = async (req, res, next) => {
+  try {
+    const result = await adminService.updateHostel({ admin: req.user, hostel_id: req.params.id, hostelData: req.body });
+    res.status(200).json({ success: true, message: 'Hostel updated successfully', data: result });
+  } catch (err) { next(err); }
+};
+
+// PUT /api/v1/admin/hostels/:id/admin
+const updateHostelAdmin = async (req, res, next) => {
+  try {
+    const result = await adminService.updateHostelAdmin({ admin: req.user, hostel_id: req.params.id, adminData: req.body });
+    res.status(200).json({ success: true, message: 'Hostel admin updated successfully', data: result });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/admin/hostels/:id/toggle-status
+const toggleHostelStatus = async (req, res, next) => {
+  try {
+    const { is_active } = req.body;
+    const result = await adminService.toggleHostelStatus({ admin: req.user, hostel_id: req.params.id, is_active });
+    res.status(200).json({ success: true, message: `Hostel ${is_active ? 'activated' : 'deactivated'} successfully`, data: result });
   } catch (err) { next(err); }
 };
 
@@ -119,8 +208,15 @@ const getTransactions = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 7;
-    const { transactions, pagination } = await adminService.getTransactions({ admin: req.user, page, limit });
-    res.status(200).json({ success: true, data: { transactions, pagination } });
+    const transactions = await adminService.getTransactions({
+      admin: req.user,
+      page:  req.query.page,
+      limit: req.query.limit,
+      type:  req.query.type,
+      date:  req.query.date,
+      student: req.query.student,
+    });
+    res.status(200).json({ success: true, data: transactions });
   } catch (err) { next(err); }
 };
 
@@ -166,11 +262,19 @@ module.exports = {
   deductWallet,
   getStudents,
   getRooms,
+  createRoom,
+  toggleRoomStatus,
   getActiveSessions,
   getDashboard,
+  getHostels,
+  addHostel,
   getReports,
   getTransactions,
   getRoomDetails,
   removeMemberFromRoom,
   inviteStudentToRoom,
+  getHostelDetails,
+  updateHostel,
+  updateHostelAdmin,
+  toggleHostelStatus,
 };
