@@ -348,7 +348,7 @@ const getDashboardOverview = async ({ admin }) => {
 
   const result = await db.query(
     `SELECT
-       (SELECT COUNT(*) FROM rooms WHERE ($1::int IS NULL OR hostel_id = $1) AND is_active = TRUE)
+       (SELECT COUNT(*) FROM rooms WHERE ($1::int IS NULL OR hostel_id = $1))
          AS total_rooms,
 
        (SELECT COUNT(*) FROM users
@@ -404,7 +404,7 @@ const getHostelsOverview = async ({ admin }) => {
       h.hostel_code,
       h.is_active,
       h.address,
-      (SELECT COUNT(*) FROM rooms r WHERE r.hostel_id = h.hostel_id AND r.is_active = TRUE) AS total_rooms,
+      (SELECT COUNT(*) FROM rooms r WHERE r.hostel_id = h.hostel_id) AS total_rooms,
       (SELECT COUNT(*) FROM users WHERE role = 'student' AND hostel_id = h.hostel_id AND is_active = TRUE) AS total_students,
       (SELECT COUNT(*) FROM sessions s JOIN rooms r ON r.r_id = s.r_id WHERE r.hostel_id = h.hostel_id AND s.status = 'active') AS active_sessions,
       (SELECT COALESCE(SUM(cr.cost), 0) FROM consumption_records cr JOIN sessions s ON s.session_id = cr.session_id JOIN rooms r ON r.r_id = s.r_id WHERE r.hostel_id = h.hostel_id) AS total_revenue

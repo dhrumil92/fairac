@@ -17,6 +17,7 @@ import RoomPage from './pages/student/RoomPage';
 import SessionPage from './pages/student/SessionPage';
 import WalletPage from './pages/student/WalletPage';
 import ProfilePage from './pages/student/ProfilePage';
+import SupportPage from './pages/shared/SupportPage';
 
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminStudentsPage from './pages/admin/AdminStudentsPage';
@@ -90,6 +91,9 @@ const App = () => {
           <Route path="/profile" element={
             <StudentRoute><ProfilePage /></StudentRoute>
           } />
+          <Route path="/support" element={
+            <StudentRoute><SupportPage /></StudentRoute>
+          } />
 
           {/* ── Admin Routes ── */}
           <Route path="/admin/dashboard" element={
@@ -100,6 +104,9 @@ const App = () => {
           } />
           <Route path="/admin/sessions" element={
             <AdminRoute><AdminSessionsPage /></AdminRoute>
+          } />
+          <Route path="/admin/support" element={
+            <AdminRoute><SupportPage /></AdminRoute>
           } />
           <Route path="/admin/students" element={
             <AdminRoute><AdminStudentsPage /></AdminRoute>

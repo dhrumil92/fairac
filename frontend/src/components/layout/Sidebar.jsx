@@ -31,6 +31,7 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [hasActiveSession, setHasActiveSession] = useState(false);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
 
   // Custom tooltip state
   const [isCopied, setIsCopied] = useState(false);
@@ -62,8 +63,13 @@ const Sidebar = () => {
       };
 
       checkSession();
-      const interval = setInterval(checkSession, 10000); // Check every 10s
+      const interval = setInterval(checkSession, 10000);
       return () => clearInterval(interval);
+    } else {
+      // Single lightweight call on mount — no polling, no server load
+      api.get('/support/unseen-count')
+        .then(res => setOpenTicketCount(res.data.count || 0))
+        .catch(() => {});
     }
   }, [isAdmin]);
 
@@ -179,9 +185,12 @@ const Sidebar = () => {
       <div className="sidebar-footer">
         <div className="sidebar-divider"></div>
 
-        <Link to="#" className="sidebar-bottom-link">
+        <Link to={isAdmin ? "/admin/support" : "/support"} className="sidebar-bottom-link" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span className="material-symbols-outlined">contact_support</span>
-          <span>Support</span>
+          <span style={{ flex: 1 }}>Support</span>
+          {isAdmin && openTicketCount > 0 && (
+            <span className="ticket-badge" title={`${openTicketCount} open ticket${openTicketCount > 1 ? 's' : ''}`} />
+          )}
         </Link>
 
         <button className="sidebar-bottom-link" onClick={logout}>

@@ -4,6 +4,19 @@ import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
 
+// Generates page numbers to show: always First, Last, current ±1, with '...' gaps
+const getPaginationRange = (current, total) => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = [];
+  const addPage = (p) => { if (!pages.includes(p)) pages.push(p); };
+  addPage(1);
+  if (current > 3) pages.push('...');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) addPage(p);
+  if (current < total - 2) pages.push('...');
+  addPage(total);
+  return pages;
+};
+
 const AdminRoomsPage = () => {
   const { user } = useAuth();
   const [rooms, setRooms] = useState([]);
@@ -30,6 +43,9 @@ const AdminRoomsPage = () => {
   const statusDropdownRef = useRef(null);
   const portalStatusDropdownRef = useRef(null);
   const [statusDropdownRect, setStatusDropdownRect] = useState(null);
+  
+  const [roomPage, setRoomPage] = useState(1);
+  const ROOMS_PER_PAGE = 7;
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -207,10 +223,6 @@ const AdminRoomsPage = () => {
 
           {/* Rooms Grid / Table */}
           <div className="glass-card" style={{ borderRadius: '24px', backgroundColor: 'rgba(26, 37, 64, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: 'white' }}>All Rooms ({rooms.length})</h3>
-            </div>
-            
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                 <thead style={{ backgroundColor: 'rgba(255,255,255,0.05)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94A3B8' }}>
@@ -226,7 +238,7 @@ const AdminRoomsPage = () => {
                           style={{ height: '31px' }}
                         >
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {filterRoomNo === 'all' ? 'ROOM: ALL' : `ROOM: ${filterRoomNo}`}
+                            {filterRoomNo === 'all' ? `ROOM: ALL (${rooms.length})` : `ROOM: ${filterRoomNo}`}
                           </span>
                           <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#6C63FF' }}>keyboard_arrow_down</span>
                         </div>
@@ -243,9 +255,9 @@ const AdminRoomsPage = () => {
                               style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', color: filterRoomNo === 'all' ? 'white' : '#8892B0', backgroundColor: filterRoomNo === 'all' ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, zIndex: 10 }}
                               onMouseEnter={(e) => { if (filterRoomNo !== 'all') e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
                               onMouseLeave={(e) => { if (filterRoomNo !== 'all') e.currentTarget.style.backgroundColor = 'transparent' }}
-                              onClick={() => { setFilterRoomNo('all'); setIsRoomDropdownOpen(false); }}
+                              onClick={() => { setFilterRoomNo('all'); setRoomPage(1); setIsRoomDropdownOpen(false); }}
                             >
-                              ROOM: ALL
+                              ROOM: ALL ({rooms.length})
                             </div>
                             <div style={{ maxHeight: '270px', overflowY: 'auto' }}>
                               {rooms.map(r => r.room_no).map(no => (
@@ -254,7 +266,7 @@ const AdminRoomsPage = () => {
                                   style={{ padding: '10px 12px', fontSize: '12px', cursor: 'pointer', color: String(filterRoomNo) === String(no) ? 'white' : '#8892B0', backgroundColor: String(filterRoomNo) === String(no) ? 'rgba(108, 99, 255, 0.2)' : 'transparent' }}
                                   onMouseEnter={(e) => { if (String(filterRoomNo) !== String(no)) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
                                   onMouseLeave={(e) => { if (String(filterRoomNo) !== String(no)) e.currentTarget.style.backgroundColor = 'transparent' }}
-                                  onClick={() => { setFilterRoomNo(no); setIsRoomDropdownOpen(false); }}
+                                  onClick={() => { setFilterRoomNo(no); setRoomPage(1); setIsRoomDropdownOpen(false); }}
                                 >
                                   {no}
                                 </div>
@@ -295,7 +307,7 @@ const AdminRoomsPage = () => {
                                 style={{ padding: '10px 12px', fontSize: '12px', fontWeight: opt==='all'?'bold':'normal', cursor: 'pointer', color: filterSession === opt ? 'white' : '#8892B0', backgroundColor: filterSession === opt ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: opt==='all'?'1px solid rgba(255,255,255,0.1)':'none' }}
                                 onMouseEnter={(e) => { if (filterSession !== opt) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
                                 onMouseLeave={(e) => { if (filterSession !== opt) e.currentTarget.style.backgroundColor = 'transparent' }}
-                                onClick={() => { setFilterSession(opt); setIsSessionDropdownOpen(false); }}
+                                onClick={() => { setFilterSession(opt); setRoomPage(1); setIsSessionDropdownOpen(false); }}
                               >
                                 {opt === 'all' ? 'SESSIONS: ALL' : opt.toUpperCase()}
                               </div>
@@ -335,7 +347,7 @@ const AdminRoomsPage = () => {
                                 style={{ padding: '10px 12px', fontSize: '12px', fontWeight: opt==='all'?'bold':'normal', cursor: 'pointer', color: filterStatus === opt ? 'white' : '#8892B0', backgroundColor: filterStatus === opt ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: opt==='all'?'1px solid rgba(255,255,255,0.1)':'none' }}
                                 onMouseEnter={(e) => { if (filterStatus !== opt) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
                                 onMouseLeave={(e) => { if (filterStatus !== opt) e.currentTarget.style.backgroundColor = 'transparent' }}
-                                onClick={() => { setFilterStatus(opt); setIsStatusDropdownOpen(false); }}
+                                onClick={() => { setFilterStatus(opt); setRoomPage(1); setIsStatusDropdownOpen(false); }}
                               >
                                 {opt === 'all' ? 'STATUS: ALL' : opt.toUpperCase()}
                               </div>
@@ -348,11 +360,19 @@ const AdminRoomsPage = () => {
                   </tr>
                 </thead>
                 <tbody style={{ divideY: '1px solid rgba(255,255,255,0.05)' }}>
-                  {isLoading && rooms.length === 0 ? (
-                    <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>Loading rooms...</td></tr>
-                  ) : filteredRooms.length === 0 ? (
-                    <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No rooms found</td></tr>
-                  ) : filteredRooms.map(room => (
+                  {(() => {
+                    const totalPages = Math.ceil(filteredRooms.length / ROOMS_PER_PAGE);
+                    const paginatedRooms = filteredRooms.slice((roomPage - 1) * ROOMS_PER_PAGE, roomPage * ROOMS_PER_PAGE);
+
+                    if (isLoading && rooms.length === 0) return (
+                      <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>Loading rooms...</td></tr>
+                    );
+                    if (filteredRooms.length === 0) return (
+                      <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No rooms found</td></tr>
+                    );
+                    return (
+                      <>
+                        {paginatedRooms.map(room => (
                     <tr key={room.r_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -382,7 +402,7 @@ const AdminRoomsPage = () => {
                         )}
                       </td>
                       <td style={{ padding: '16px 24px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: '500', color: '#CBD5E1' }}>₹{parseFloat(room.rate_per_unit || 0).toFixed(2)} / kWh</span>
+                        <span style={{ fontSize: '14px', fontWeight: '500', color: '#CBD5E1' }}>₹{parseFloat(room.rate_per_unit || 0).toFixed(2)}</span>
                       </td>
                       <td style={{ padding: '16px 24px' }}>
                         {room.is_active 
@@ -400,7 +420,38 @@ const AdminRoomsPage = () => {
                       </td>
                     </tr>
                   ))}
-                </tbody>
+                  {totalPages > 1 && (
+                    <tr>
+                      <td colSpan="6" style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '12px', color: '#94A3B8' }}>
+                            Showing {(roomPage - 1) * ROOMS_PER_PAGE + 1}–{Math.min(roomPage * ROOMS_PER_PAGE, filteredRooms.length)} of {filteredRooms.length}
+                          </span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => setRoomPage(p => Math.max(1, p - 1))}
+                              disabled={roomPage === 1}
+                              style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: roomPage === 1 ? '#475569' : 'white', fontSize: '12px', cursor: roomPage === 1 ? 'not-allowed' : 'pointer' }}
+                            >← Prev</button>
+                            {getPaginationRange(roomPage, totalPages).map((p, i) =>
+                              p === '...'
+                                ? <span key={`ellipsis-${i}`} style={{ padding: '5px 4px', color: '#64748B', fontSize: '12px' }}>…</span>
+                                : <button key={p} onClick={() => setRoomPage(p)} style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid', fontSize: '12px', cursor: 'pointer', fontWeight: p === roomPage ? 'bold' : 'normal', borderColor: p === roomPage ? '#6C63FF' : 'rgba(255,255,255,0.1)', backgroundColor: p === roomPage ? 'rgba(108,99,255,0.2)' : 'rgba(255,255,255,0.05)', color: p === roomPage ? '#6C63FF' : 'white' }}>{p}</button>
+                            )}
+                            <button
+                              onClick={() => setRoomPage(p => Math.min(totalPages, p + 1))}
+                              disabled={roomPage === totalPages}
+                              style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: roomPage === totalPages ? '#475569' : 'white', fontSize: '12px', cursor: roomPage === totalPages ? 'not-allowed' : 'pointer' }}
+                            >Next →</button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })()}
+          </tbody>
               </table>
             </div>
           </div>

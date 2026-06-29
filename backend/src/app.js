@@ -78,6 +78,7 @@ app.use('/api/v1/sessions', require('./modules/sessions/sessions.routes'));
 app.use('/api/v1/wallet',   require('./modules/wallet/wallet.routes'));
 app.use('/api/v1/admin',    require('./modules/admin/admin.routes'));
 app.use('/api/v1/iot',      require('./modules/iot/iot.routes'));
+app.use('/api/v1/support',  require('./modules/support/support.routes'));
 
 // ─── 404 Handler ───────────────────────────────────────────────────────────
 // If no route matched above, this catches it and returns a clean 404.

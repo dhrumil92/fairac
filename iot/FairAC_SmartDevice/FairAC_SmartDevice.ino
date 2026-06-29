@@ -10,7 +10,7 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // Replace with your Node.js backend IP
-const String baseUrl = "http://192.168.1.5:5000/api/v1/iot"; 
+const String baseUrl = "http://192.168.0.107:5000/api/v1/iot"; 
 
 const unsigned long heartbeatInterval = 30000; // 30 seconds
 const unsigned long telemetryInterval = 10000; // 10 seconds
