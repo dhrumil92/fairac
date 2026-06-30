@@ -129,27 +129,34 @@ const SessionPage = () => {
   }, [activeSession]);
 
   useEffect(() => {
-    let pollInterval;
-    if (activeSession && activeSession.status === 'active') {
-      pollInterval = setInterval(() => {
-        const fetchSilently = async () => {
-          try {
-            const res = await api.get('/sessions/active');
-            const fetchedSession = res.data?.data?.session || res.data?.data;
-            if (fetchedSession?.status !== 'active') {
-              fetchSessionData();
+    const pollInterval = setInterval(() => {
+      const checkActiveSession = async () => {
+        try {
+          const res = await api.get('/sessions/active');
+          const fetchedSession = res.data?.data?.session || res.data?.data;
+          
+          if (fetchedSession?.status === 'active') {
+            if (!activeSession) {
+              // A session was started by someone else (e.g., from mobile)! Update everything quietly.
+              fetchSessionData(true);
             } else {
+              // Just update the live stats (cost, units) without reloading the whole page.
               setActiveSession(fetchedSession);
             }
-          } catch (err) {
-            if (err.response?.status === 404) {
-              fetchSessionData();
-            }
+          } else if (activeSession) {
+            // Edge case: server returned inactive session. Session stopped.
+            fetchSessionData(true);
           }
-        };
-        fetchSilently();
-      }, 10000);
-    }
+        } catch (err) {
+          if (err.response?.status === 404 && activeSession) {
+            // Session was stopped by someone else! Update everything quietly.
+            fetchSessionData(true);
+          }
+        }
+      };
+      checkActiveSession();
+    }, 10000);
+
     return () => clearInterval(pollInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession]);

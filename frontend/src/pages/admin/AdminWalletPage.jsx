@@ -142,7 +142,7 @@ const AdminWalletPage = () => {
 
               {/* Manual Credit Transfer Form (Super Admin Only) */}
               {user?.role === 'super_admin' && (
-                <section>
+                <section style={{ minWidth: 0 }}>
                   <div className="glass-card" style={{ padding: '32px', borderRadius: '24px', backgroundColor: 'rgba(26, 37, 64, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '8px', backgroundColor: 'rgba(108, 99, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF' }}>
@@ -204,7 +204,7 @@ const AdminWalletPage = () => {
               )}
 
               {/* Transactions Ledger */}
-              <section>
+              <section style={{ minWidth: 0 }}>
                 <div className="glass-card" style={{ borderRadius: '24px', backgroundColor: 'rgba(26, 37, 64, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
