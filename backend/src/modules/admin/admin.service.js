@@ -761,6 +761,28 @@ const inviteStudentToRoom = async ({ admin, room_id, identifier }) => {
   return { message: `Invitation sent to ${invitee.name}.` };
 };
 
+// =============================================================================
+// toggleStudentStatus
+// =============================================================================
+// Toggles the is_active flag for a student
+const toggleStudentStatus = async ({ admin, u_id, is_active }) => {
+  // If admin is a hostel admin, they can only toggle students in their hostel
+  let query, params;
+  if (admin.role === 'hostel_admin') {
+    query = `UPDATE users SET is_active = $1 WHERE u_id = $2 AND role = 'student' AND hostel_id = $3 RETURNING *`;
+    params = [is_active, u_id, admin.hostel_id];
+  } else {
+    query = `UPDATE users SET is_active = $1 WHERE u_id = $2 AND role = 'student' RETURNING *`;
+    params = [is_active, u_id];
+  }
+
+  const res = await db.query(query, params);
+  if (res.rows.length === 0) {
+    throw createError(404, 'Student not found or you do not have permission.');
+  }
+  return res.rows[0];
+};
+
 module.exports = {
   rechargeWallet,
   deductWallet,
@@ -781,4 +803,5 @@ module.exports = {
   updateHostel,
   updateHostelAdmin,
   toggleHostelStatus,
+  toggleStudentStatus,
 };

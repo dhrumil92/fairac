@@ -141,10 +141,23 @@ const ProfilePage = () => {
                   <span style={{ padding: '6px 16px', borderRadius: '9999px', backgroundColor: 'rgba(108, 99, 255, 0.2)', color: '#6C63FF', fontSize: '14px', fontWeight: '600', border: '1px solid rgba(108, 99, 255, 0.3)', textTransform: 'capitalize' }}>
                     {user?.role}
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94A3B8', fontSize: '14px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>location_on</span>
-                    FairAC Registered User
-                  </span>
+                  
+                  {user?.is_active === false ? (
+                    <span style={{ padding: '6px 16px', borderRadius: '9999px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', fontSize: '14px', fontWeight: '600', border: '1px solid rgba(255, 107, 107, 0.3)' }}>
+                      Account Suspended
+                    </span>
+                  ) : (
+                    <span style={{ padding: '6px 16px', borderRadius: '9999px', backgroundColor: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', fontSize: '14px', fontWeight: '600', border: '1px solid rgba(0, 212, 170, 0.3)' }}>
+                      Active
+                    </span>
+                  )}
+
+                  {user?.hostel_name && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '9999px', backgroundColor: 'rgba(251, 146, 60, 0.1)', color: '#FB923C', fontSize: '14px', fontWeight: '600', border: '1px solid rgba(251, 146, 60, 0.3)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>apartment</span>
+                      {user.hostel_name}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

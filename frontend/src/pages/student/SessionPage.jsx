@@ -22,6 +22,7 @@ const SessionPage = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
 
+  const [historyScope, setHistoryScope] = useState('me');
   const [filterType, setFilterType] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [isFilterPopupOpen, setIsFilterPopupOpen] = useState(false);
@@ -63,7 +64,7 @@ const SessionPage = () => {
       const [roomRes, activeRes, recentRes, walletRes] = await Promise.allSettled([
         api.get('/rooms/my'),
         api.get('/sessions/active'),
-        api.get(`/sessions/my?page=${page}&limit=7${filterType !== 'all' ? `&type=${filterType}` : ''}${filterDate ? `&date=${filterDate}` : ''}`),
+        api.get(`/sessions/my?page=${page}&limit=7&scope=${historyScope}${filterType !== 'all' ? `&type=${filterType}` : ''}${filterDate ? `&date=${filterDate}` : ''}`),
         api.get('/wallet')
       ]);
 
@@ -96,7 +97,7 @@ const SessionPage = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSessionData();
-  }, [page, filterType, filterDate]);
+  }, [page, filterType, filterDate, historyScope]);
 
   useEffect(() => {
     if (window.location.hash === '#history' && !loading) {
@@ -367,13 +368,28 @@ const SessionPage = () => {
           {loading ? (
             <div className="animate-pulse bg-[#1A2540]/40 h-96 rounded-3xl w-full"></div>
           ) : !myRoom ? (
-            <div className={`${glassCardClasses} rounded-3xl p-12 text-center`}>
+            <div className={`${glassCardClasses} rounded-3xl p-12 text-center flex flex-col items-center justify-center`}>
               <span className="material-symbols-outlined text-6xl text-[#6C63FF] mb-4">meeting_room</span>
               <h3 className="text-2xl font-headline font-bold text-white mb-2">No Room Found</h3>
-              <p className="text-slate-400">You must create or join a room before starting an AC session.</p>
+              <p className="text-slate-400 mb-6">You must create or join a room before starting an AC session.</p>
+              <Link to="/room" className="inline-flex items-center gap-2 px-6 py-3 bg-[#6C63FF] hover:bg-[#5A52D5] text-white font-bold rounded-xl transition-all" style={{ textDecoration: 'none' }}>
+                Join Room Now
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
             </div>
           ) : (
             <>
+              {/* ── Suspended Account Banner ── */}
+              {user?.is_active === false && (
+                <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined">warning</span>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '15px' }}>Account Suspended</strong>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Your account has been suspended by the administrator. You cannot start or join AC sessions.</p>
+                  </div>
+                </div>
+              )}
+
               {/* ── Deactivated Banners ── */}
               {myRoom && myRoom.hostel_active === false && (
                 <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -464,11 +480,11 @@ const SessionPage = () => {
                           <div className="space-y-2">
                             <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Session Duration</label>
                             <div className="relative">
-                              <select
-                                className="w-full bg-[#0F1729] !bg-none border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ colorScheme: 'dark' }}
-                                value={sessionType}
-                                disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
+                                <select
+                                  className="w-full bg-[#0F1729] !bg-none border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  style={{ colorScheme: 'dark' }}
+                                  value={sessionType}
+                                  disabled={user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setSessionType(val);
@@ -494,28 +510,28 @@ const SessionPage = () => {
                               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                 {sessionType === 'duration' ? 'Target Hours' : sessionType === 'budget' ? 'Target Budget (₹)' : 'Target Units (kWh)'}
                               </label>
-                              <input
-                                type="number"
-                                step={sessionType === 'budget' ? '10' : '0.5'}
-                                min={sessionType === 'budget' ? '10' : '0.5'}
-                                className="w-full bg-[#0F1729] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] outline-none"
-                                value={targetValue}
-                                disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
+                                <input
+                                  type="number"
+                                  step={sessionType === 'budget' ? '10' : '0.5'}
+                                  min={sessionType === 'budget' ? '10' : '0.5'}
+                                  className="w-full bg-[#0F1729] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[#6C63FF] outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                  value={targetValue}
+                                  disabled={user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false}
                                 onChange={(e) => setTargetValue(e.target.value)}
                                 placeholder={sessionType === 'duration' ? 'e.g. 2.5' : sessionType === 'budget' ? 'e.g. 50' : 'e.g. 2.5'}
                               />
                             </div>
                           )}
 
-                          <button 
-                            type="submit" 
-                            disabled={myRoom?.room_active === false || myRoom?.hostel_active === false}
-                            className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                              (myRoom?.room_active === false || myRoom?.hostel_active === false) 
-                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
-                              : 'bg-[#00D4AA] text-[#0F1729] hover:bg-[#00E6B8] hover:shadow-[0_0_20px_rgba(0,212,170,0.4)]'
-                            }`}
-                          >
+                            <button 
+                              type="submit" 
+                              disabled={user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false}
+                              className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                                (user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false) 
+                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                                : 'bg-[#00D4AA] text-[#0F1729] hover:bg-[#00E6B8] hover:shadow-[0_0_20px_rgba(0,212,170,0.4)]'
+                              }`}
+                            >
                             <span className="material-symbols-outlined">bolt</span>
                             Start Session Now
                           </button>
@@ -752,9 +768,32 @@ const SessionPage = () => {
           {/* ── Session History Table ── */}
           <section id="history" className="table-section glass-card" style={{ marginTop: '24px', overflow: 'visible' }}>
             <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 className="section-heading">All Session History</h2>
+              <h2 className="section-heading">
+                All Session History 
+                {pagination.total !== undefined && (
+                  <span style={{ fontSize: '14px', color: '#8892B0', marginLeft: '8px', fontWeight: 'normal' }}>
+                    ({pagination.total})
+                  </span>
+                )}
+              </h2>
               
-              <div ref={filterPopupRef} style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '4px', gap: '4px' }}>
+                  <button 
+                    onClick={() => { setHistoryScope('me'); setPage(1); }}
+                    style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: historyScope === 'me' ? 'rgba(108,99,255,0.2)' : 'transparent', color: historyScope === 'me' ? '#6C63FF' : '#8892B0', transition: 'all 0.2s' }}
+                  >
+                    My Sessions
+                  </button>
+                  <button 
+                    onClick={() => { setHistoryScope('room'); setPage(1); }}
+                    style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 'bold', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: historyScope === 'room' ? 'rgba(108,99,255,0.2)' : 'transparent', color: historyScope === 'room' ? '#6C63FF' : '#8892B0', transition: 'all 0.2s' }}
+                  >
+                    Room Sessions
+                  </button>
+                </div>
+
+                <div ref={filterPopupRef} style={{ position: 'relative' }}>
                 <button
                   onClick={() => setIsFilterPopupOpen(!isFilterPopupOpen)}
                   style={{
@@ -825,6 +864,7 @@ const SessionPage = () => {
                   </div>
                 )}
               </div>
+              </div>
             </div>
 
             {loading ? (
@@ -857,8 +897,9 @@ const SessionPage = () => {
                         ? `${Math.floor(session.duration_minutes / 60)}h ${Math.floor(session.duration_minutes % 60)}m`
                         : '—';
                       const isActive = session.status === 'active';
+                      const didParticipate = session.my_participation_status === 'accepted' || session.my_participation_status === 'left';
                       return (
-                        <tr key={session.session_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: isActive ? 'rgba(108, 99, 255, 0.05)' : 'transparent' }}>
+                        <tr key={session.session_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: isActive ? 'rgba(108, 99, 255, 0.05)' : 'transparent', opacity: didParticipate ? 1 : 0.6 }}>
                           <td style={{ padding: '12px', color: '#8892B0' }}>#{String(session.session_id).padStart(5, '0')}</td>
                           <td style={{ padding: '12px', color: 'white', textTransform: 'capitalize' }}>
                             {session.session_type.replace('_', ' ')}
@@ -870,14 +911,14 @@ const SessionPage = () => {
                           </td>
                           <td style={{ padding: '12px', color: '#8892B0' }}>{dur}</td>
                           <td style={{ padding: '12px' }}>
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div className="avatar-stack" style={{ margin: 0, marginLeft: '8px' }}>
                               {(session.participants || []).slice(0, 3).map((p, i) => (
-                                <div key={i} style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#6C63FF', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                                <div key={i} className="avatar-mini">
                                   {p.name?.[0]?.toUpperCase() || '?'}
                                 </div>
                               ))}
                               {(session.participants?.length || 0) > 3 && (
-                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.1)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                                <div className="avatar-mini avatar-more">
                                   +{(session.participants.length - 3)}
                                 </div>
                               )}
@@ -886,8 +927,8 @@ const SessionPage = () => {
                           <td style={{ padding: '12px', color: 'white' }}>
                             {session.total_units != null ? `${parseFloat(session.total_units).toFixed(3)} kWh` : '—'}
                           </td>
-                          <td style={{ padding: '12px', color: isActive ? '#00D4AA' : 'white' }}>
-                            {session.my_cost != null ? `₹${parseFloat(session.my_cost).toFixed(2)}` : '—'}
+                          <td style={{ padding: '12px', color: didParticipate ? (isActive ? '#00D4AA' : 'white') : '#8892B0' }}>
+                            {didParticipate && session.my_cost != null ? `₹${parseFloat(session.my_cost).toFixed(2)}` : '—'}
                           </td>
                           <td style={{ padding: '12px' }}>
                             <span style={{

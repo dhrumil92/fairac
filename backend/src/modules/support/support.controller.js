@@ -26,9 +26,17 @@ exports.createTicket = async (req, res) => {
 // Lightweight: returns count of tickets admin hasn't seen yet
 exports.getUnseenCount = async (req, res) => {
   try {
-    const { rows } = await db.query(
-      `SELECT COUNT(*) AS count FROM support_tickets WHERE seen_by_admin = false`
-    );
+    let queryStr = `SELECT COUNT(*) AS count FROM support_tickets t`;
+    let queryParams = [];
+
+    if (req.user.role === 'admin') {
+      queryStr += ` JOIN users u ON t.u_id = u.u_id WHERE t.seen_by_admin = false AND u.hostel_id = $1`;
+      queryParams.push(req.user.hostel_id);
+    } else {
+      queryStr += ` WHERE t.seen_by_admin = false`;
+    }
+
+    const { rows } = await db.query(queryStr, queryParams);
     res.json({ success: true, count: parseInt(rows[0].count, 10) });
   } catch (error) {
     console.error('Error fetching unseen count:', error);
@@ -39,7 +47,14 @@ exports.getUnseenCount = async (req, res) => {
 // Called when admin opens the Support page — clears the dot
 exports.markAllSeen = async (req, res) => {
   try {
-    await db.query(`UPDATE support_tickets SET seen_by_admin = true WHERE seen_by_admin = false`);
+    if (req.user.role === 'admin') {
+      await db.query(
+        `UPDATE support_tickets SET seen_by_admin = true WHERE seen_by_admin = false AND u_id IN (SELECT u_id FROM users WHERE hostel_id = $1)`,
+        [req.user.hostel_id]
+      );
+    } else {
+      await db.query(`UPDATE support_tickets SET seen_by_admin = true WHERE seen_by_admin = false`);
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking tickets as seen:', error);
@@ -67,16 +82,23 @@ exports.getMyTickets = async (req, res) => {
 
 exports.getTickets = async (req, res) => {
   try {
-    const { rows } = await db.query(
-      `SELECT t.ticket_id, t.subject, t.message, t.status, t.created_at,
+    let queryStr = `SELECT t.ticket_id, t.subject, t.message, t.status, t.created_at,
               u.name, u.email, u.mobile,
               r.room_no
        FROM support_tickets t
        JOIN users u ON t.u_id = u.u_id
        LEFT JOIN room_members rm ON rm.u_id = u.u_id AND rm.left_at IS NULL
-       LEFT JOIN rooms r ON r.r_id = rm.r_id
-       ORDER BY CASE WHEN t.status = 'open' THEN 1 ELSE 2 END, t.created_at DESC`
-    );
+       LEFT JOIN rooms r ON r.r_id = rm.r_id`;
+    let queryParams = [];
+
+    if (req.user.role === 'admin') {
+      queryStr += ` WHERE u.hostel_id = $1`;
+      queryParams.push(req.user.hostel_id);
+    }
+    
+    queryStr += ` ORDER BY CASE WHEN t.status = 'open' THEN 1 ELSE 2 END, t.created_at DESC`;
+
+    const { rows } = await db.query(queryStr, queryParams);
 
     res.json({ success: true, data: rows });
   } catch (error) {

@@ -198,10 +198,8 @@ const loginUser = async ({ identifier, password }) => {
 
   const user = userResult.rows[0];
 
-  // ── Step 3: Suspended account check ──────────────────────────────────────
-  if (!user.is_active) {
-    throw createError(403, 'Your account has been suspended. Please contact the admin.');
-  }
+  // Allow login even if inactive, so they can see wallet/history.
+  // Session starting is blocked independently.
 
   // ── Step 4 & 5: Compare password ──────────────────────────────────────────
   // bcrypt.compare() hashes the provided password with the SAME salt that was
@@ -226,6 +224,7 @@ const loginUser = async ({ identifier, password }) => {
       hostel_id:   user.hostel_id,
       hostel_name: user.hostel_name,
       hostel_code: user.hostel_code,
+      is_active:   user.is_active,
     },
     token,
   };
@@ -255,9 +254,7 @@ const getMe = async (u_id) => {
 
   const user = result.rows[0];
 
-  if (!user.is_active) {
-    throw createError(403, 'Your account has been suspended.');
-  }
+  // Allow refresh even if inactive, so they can stay logged in to see wallet/history.
 
   return user;
 };

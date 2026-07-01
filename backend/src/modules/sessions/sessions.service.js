@@ -11,12 +11,17 @@ const { createError } = require('../../middleware/errorHandler');
 // Used by start, join, invite endpoints.
 const assertRoomMember = async (u_id, r_id) => {
   const result = await db.query(
-    `SELECT rm_id, role FROM room_members
-     WHERE u_id = $1 AND r_id = $2 AND left_at IS NULL`,
+    `SELECT rm.rm_id, rm.role, u.is_active 
+     FROM room_members rm
+     JOIN users u ON u.u_id = rm.u_id
+     WHERE rm.u_id = $1 AND rm.r_id = $2 AND rm.left_at IS NULL`,
     [u_id, r_id]
   );
   if (result.rows.length === 0) {
     throw createError(403, 'You must be an active room member to perform this action.');
+  }
+  if (!result.rows[0].is_active) {
+    throw createError(403, 'Account Suspended, Cannot participate into session');
   }
   return result.rows[0];
 };
@@ -252,21 +257,50 @@ const getSessionById = async (session_id) => {
 // =============================================================================
 // Returns all sessions the caller has participated in (as creator or participant).
 //
-const getMySessionHistory = async (u_id, { page = 1, limit = 7, type = null, date = null } = {}) => {
+const getMySessionHistory = async (u_id, { page = 1, limit = 7, type = null, date = null, scope = 'me' } = {}) => {
   const offset = (page - 1) * limit;
 
-  const countResult = await db.query(
-    `SELECT COUNT(*) FROM sessions s
-     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
-     WHERE ($2::text IS NULL OR s.session_type = $2::text)
-       AND ($3::date IS NULL OR s.start_time::date = $3::date)`,
-    [u_id, type || null, date || null]
-  );
+  let r_id = null;
+  if (scope === 'room') {
+    const roomResult = await db.query(
+      `SELECT r_id FROM room_members WHERE u_id = $1 AND left_at IS NULL LIMIT 1`,
+      [u_id]
+    );
+    if (roomResult.rows.length > 0) {
+      r_id = roomResult.rows[0].r_id;
+    }
+  }
+
+  const joinClause = scope === 'room' && r_id 
+    ? `LEFT JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1`
+    : `JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1`;
+    
+  const whereClause = scope === 'room' && r_id
+    ? `s.r_id = ${r_id}`
+    : `sp.status IN ('accepted', 'left')`;
+
+  const countQuery = `
+    SELECT COUNT(*) FROM sessions s
+    ${joinClause}
+    WHERE ${whereClause}
+      AND ($2::text IS NULL OR s.session_type = $2::text)
+      AND ($3::date IS NULL OR s.start_time::date = $3::date)
+  `;
+  const countResult = await db.query(countQuery, [u_id, type || null, date || null]);
   const total = parseInt(countResult.rows[0].count, 10);
   const total_pages = Math.ceil(total / limit);
 
-  const result = await db.query(
-    `SELECT
+  // Count sessions in the current calendar month only
+  const monthCountResult = await db.query(
+    `SELECT COUNT(*) FROM sessions s
+     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
+     WHERE DATE_TRUNC('month', s.start_time) = DATE_TRUNC('month', NOW())`,
+    [u_id]
+  );
+  const this_month_count = parseInt(monthCountResult.rows[0].count, 10);
+
+  const query = `
+    SELECT
             s.session_id, s.status, s.session_type, s.total_units,
             s.rate_per_unit, s.start_time, s.end_time,
             r.room_no, r.room_name,
@@ -278,21 +312,23 @@ const getMySessionHistory = async (u_id, { page = 1, limit = 7, type = null, dat
               SELECT json_agg(json_build_object('name', u.name))
               FROM session_participants sp2
               JOIN users u ON u.u_id = sp2.u_id
-              WHERE sp2.session_id = s.session_id AND sp2.status = 'accepted'
+              WHERE sp2.session_id = s.session_id AND sp2.status IN ('accepted', 'left')
             ) AS participants
      FROM sessions s
      JOIN rooms r ON r.r_id = s.r_id
-     JOIN session_participants sp ON sp.session_id = s.session_id AND sp.u_id = $1
+     ${joinClause}
      LEFT JOIN consumption_records cr ON cr.session_id = s.session_id AND cr.u_id = $1
-     WHERE ($2::text IS NULL OR s.session_type = $2::text)
+     WHERE ${whereClause}
+       AND ($2::text IS NULL OR s.session_type = $2::text)
        AND ($3::date IS NULL OR s.start_time::date = $3::date)
      ORDER BY s.start_time DESC
-     LIMIT $4 OFFSET $5`,
-    [u_id, type || null, date || null, limit, offset]
-  );
+     LIMIT $4 OFFSET $5
+  `;
+  const result = await db.query(query, [u_id, type || null, date || null, limit, offset]);
   
   return {
     sessions: result.rows,
+    this_month_count,
     pagination: {
       total,
       page: parseInt(page, 10),

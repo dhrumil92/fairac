@@ -95,6 +95,9 @@ router.post('/hostels/:id/toggle-status', authorizeRoles('super_admin'), control
 // GET /api/v1/admin/students — list students (?search=)
 router.get('/students', controller.getStudents);
 
+// PUT /api/v1/admin/students/:id/status — toggle student status
+router.put('/students/:id/status', controller.toggleStudentStatus);
+
 // GET /api/v1/admin/rooms — list rooms
 router.get('/rooms', controller.getRooms);
 

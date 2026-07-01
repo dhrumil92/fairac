@@ -105,7 +105,7 @@ const DashboardPage = () => {
         if (sessionsRes.status === 'fulfilled') {
           const data = sessionsRes.value.data.data;
           setRecent(data.sessions || data || []);
-          setTotalSessions(data.pagination?.total || data.sessions?.length || data?.length || 0);
+          setTotalSessions(data.this_month_count ?? data.pagination?.total ?? data.sessions?.length ?? data?.length ?? 0);
         }
         if (activeSessionRes.status === 'fulfilled') {
           const d = activeSessionRes.value.data.data;
@@ -331,6 +331,16 @@ const DashboardPage = () => {
 
         {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
         {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
+
+        {user?.is_active === false && (
+          <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', padding: '16px', borderRadius: '12px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(255, 107, 107, 0.2)' }}>
+            <span className="material-symbols-outlined">warning</span>
+            <div>
+              <strong style={{ display: 'block', fontSize: '15px' }}>Account Suspended</strong>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Your account has been suspended by the administrator. You cannot start or join AC sessions.</p>
+            </div>
+          </div>
+        )}
         
         {myParticipant?.status === 'invited' && (
           <div 
@@ -571,8 +581,8 @@ const DashboardPage = () => {
                 iconColor="#FB923C"
                 iconBg="rgba(251,146,60,0.15)"
                 label="Room"
-                value={roomInfo ? roomInfo.room_number || roomInfo.room_name || 'Room —' : 'No room'}
-                badge={roomInfo ? roomInfo.hostel_name || 'Hostel' : 'Join a room'}
+                value={roomInfo ? roomInfo.room_number || roomInfo.room_name || `Room ${roomInfo.room_no}` || 'Room —' : 'Not Assigned'}
+                badge={user?.hostel_name || roomInfo?.hostel_name || 'Hostel'}
                 badgeColor="#FB923C"
                 onClick={() => navigate('/room')}
               />
@@ -635,27 +645,34 @@ const DashboardPage = () => {
                 <h3>No Active Session</h3>
                 <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button 
-                    onClick={handleQuickStartSession} 
-                    disabled={roomInfo?.room_active === false || roomInfo?.hostel_active === false}
-                    style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? '#334155' : '#00D4AA', color: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? '#94A3B8' : '#0F1729', fontWeight: 'bold', cursor: (roomInfo?.room_active === false || roomInfo?.hostel_active === false) ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }} 
-                    onMouseOver={(e) => { if (roomInfo?.room_active !== false && roomInfo?.hostel_active !== false) e.currentTarget.style.opacity = '0.9'; }} 
-                    onMouseOut={(e) => { if (roomInfo?.room_active !== false && roomInfo?.hostel_active !== false) e.currentTarget.style.opacity = '1'; }}
-                  >
-                    <span className="material-symbols-outlined">play_arrow</span>
-                    Quick Start (1.5 hr)
-                  </button>
-                  {roomInfo?.room_active === false || roomInfo?.hostel_active === false ? (
-                    <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
-                      <span className="material-symbols-outlined">tune</span>
-                      Advanced Options
-                    </div>
-                  ) : (
-                    <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-symbols-outlined">tune</span>
-                      Advanced Options
-                    </Link>
-                  )}
+                  {(() => {
+                    const isStartDisabled = user?.is_active === false || roomInfo?.room_active === false || roomInfo?.hostel_active === false;
+                    return (
+                      <>
+                        <button 
+                          onClick={handleQuickStartSession} 
+                          disabled={isStartDisabled}
+                          style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: isStartDisabled ? '#334155' : '#00D4AA', color: isStartDisabled ? '#94A3B8' : '#0F1729', fontWeight: 'bold', cursor: isStartDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }} 
+                          onMouseOver={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '0.9'; }} 
+                          onMouseOut={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '1'; }}
+                        >
+                          <span className="material-symbols-outlined">play_arrow</span>
+                          Quick Start (1.5 hr)
+                        </button>
+                        {isStartDisabled ? (
+                          <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
+                            <span className="material-symbols-outlined">tune</span>
+                            Advanced Options
+                          </div>
+                        ) : (
+                          <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="material-symbols-outlined">tune</span>
+                            Advanced Options
+                          </Link>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -681,7 +698,7 @@ const DashboardPage = () => {
         <section className="table-section glass-card">
           <div className="table-header">
             <h2 className="section-heading">Recent Sessions</h2>
-            <Link to="/sessions" className="table-see-all" id="see-all-sessions-link">
+            <Link to="/sessions#history" className="table-see-all" id="see-all-sessions-link">
               See All History
               <span className="material-symbols-outlined">open_in_new</span>
             </Link>

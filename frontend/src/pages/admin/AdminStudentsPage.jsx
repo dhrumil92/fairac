@@ -10,6 +10,9 @@ const AdminStudentsPage = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [activeTab, setActiveTab] = useState('profile');
+  const [studentHistory, setStudentHistory] = useState(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const fetchStudents = async () => {
     try {
@@ -23,9 +26,42 @@ const AdminStudentsPage = () => {
     }
   };
 
+  const fetchStudentHistory = async () => {
+    if (!selectedStudent) return;
+    try {
+      setIsHistoryLoading(true);
+      const res = await api.get('/admin/transactions', { params: { student: selectedStudent.u_id, limit: 20 } });
+      setStudentHistory(res.data.data.transactions || []);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to load history');
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (studentId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus;
+      await api.put(`/admin/students/${studentId}/status`, { is_active: newStatus });
+      // Update local state without fetching all again
+      setStudents(students.map(st => st.u_id === studentId ? { ...st, is_active: newStatus } : st));
+      if (selectedStudent && selectedStudent.u_id === studentId) {
+        setSelectedStudent({ ...selectedStudent, is_active: newStatus });
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to toggle student status');
+    }
+  };
+
   useEffect(() => {
     fetchStudents();
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (activeTab === 'history' && selectedStudent) {
+      fetchStudentHistory();
+    }
+  }, [activeTab, selectedStudent]);
 
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
@@ -121,7 +157,7 @@ const AdminStudentsPage = () => {
                         </td>
                         <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                           <button
-                            onClick={() => setSelectedStudent(st)}
+                            onClick={() => { setSelectedStudent(st); setActiveTab('profile'); }}
                             style={{ padding: '6px 16px', backgroundColor: '#6C63FF', color: 'white', fontSize: '12px', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
                             onMouseOver={e => e.currentTarget.style.opacity = 0.8}
                             onMouseOut={e => e.currentTarget.style.opacity = 1}
@@ -151,58 +187,123 @@ const AdminStudentsPage = () => {
                   </button>
                 </div>
 
-                {/* Modal Body */}
-                <div style={{ padding: '14px 14px' }}>
-                  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
-                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF', fontSize: '24px', fontWeight: 'bold', flexShrink: 0 }}>
-                      {selectedStudent.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white', margin: '0 0 4px 0' }}>{selectedStudent.name}</h4>
-                      <p style={{ fontSize: '14px', color: '#94A3B8', margin: 0 }}>ID: {selectedStudent.u_id}</p>
-                      <div style={{ marginTop: '8px' }}>
-                        {selectedStudent.is_active
-                          ? <span style={{ padding: '4px 10px', borderRadius: '9999px', backgroundColor: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Active Account</span>
-                          : <span style={{ padding: '4px 10px', borderRadius: '9999px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Inactive Account</span>
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '14px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)' }}>
-                    <div>
-                      <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contact Info</span>
-                      <p style={{ margin: '0 0 4px 0', color: 'white', fontSize: '14px' }}>{selectedStudent.email}</p>
-                      <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px' }}>{selectedStudent.mobile}</p>
-                    </div>
-                    <div>
-                      <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Accommodation</span>
-                      <p style={{ margin: '0 0 4px 0', color: 'white', fontSize: '14px' }}>Room {selectedStudent.room_no || 'Unassigned'}</p>
-                      {selectedStudent.room_role && <p style={{ margin: 0, color: '#6C63FF', fontSize: '14px', textTransform: 'capitalize' }}>Role: {selectedStudent.room_role}</p>}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '14px', backgroundColor: 'rgba(108, 99, 255, 0.05)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(108, 99, 255, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Wallet Balance</span>
-                      <h2 style={{ margin: 0, fontSize: '28px', color: parseFloat(selectedStudent.balance) > 100 ? '#00D4AA' : (parseFloat(selectedStudent.balance) < 0 ? '#FF6B6B' : '#F59E0B') }}>
-                        ₹{parseFloat(selectedStudent.balance || 0).toFixed(2)}
-                      </h2>
-                    </div>
-                    <button style={{ padding: '8px 16px', backgroundColor: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '8px', border: '1px solid rgba(108, 99, 255, 0.2)', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
-                      Add Funds
-                    </button>
-                  </div>
+                {/* Tabs Navigation */}
+                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                  <button onClick={() => setActiveTab('profile')} style={{ flex: 1, padding: '12px', background: 'none', border: 'none', borderBottom: activeTab === 'profile' ? '2px solid #6C63FF' : '2px solid transparent', color: activeTab === 'profile' ? 'white' : '#94A3B8', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', transition: 'all 0.2s' }}>Profile</button>
+                  <button onClick={() => setActiveTab('history')} style={{ flex: 1, padding: '12px', background: 'none', border: 'none', borderBottom: activeTab === 'history' ? '2px solid #6C63FF' : '2px solid transparent', color: activeTab === 'history' ? 'white' : '#94A3B8', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', transition: 'all 0.2s' }}>History</button>
+                  <button onClick={() => setActiveTab('danger')} style={{ flex: 1, padding: '12px', background: 'none', border: 'none', borderBottom: activeTab === 'danger' ? '2px solid #FF6B6B' : '2px solid transparent', color: activeTab === 'danger' ? '#FF6B6B' : '#94A3B8', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', transition: 'all 0.2s' }}>Danger Zone</button>
                 </div>
 
-                {/* Modal Footer */}
-                <div style={{ padding: '14px 14px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', gap: '12px', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-                  <button style={{ flex: 1, padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', borderRadius: '12px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}>
-                    View Session History
-                  </button>
-                  <button style={{ flex: 1, padding: '10px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.2)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}>
-                    {selectedStudent.is_active ? 'Suspend Account' : 'Activate Account'}
-                  </button>
+                {/* Modal Body */}
+                <div style={{ padding: '20px', height: '360px', overflowY: 'auto' }}>
+                  {activeTab === 'profile' && (
+                    <div className="fade-in">
+                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
+                        <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF', fontSize: '24px', fontWeight: 'bold', flexShrink: 0 }}>
+                          {selectedStudent.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '20px', fontWeight: 'bold', color: 'white', margin: '0 0 4px 0' }}>{selectedStudent.name}</h4>
+                          <p style={{ fontSize: '14px', color: '#94A3B8', margin: 0 }}>ID: {selectedStudent.u_id}</p>
+                          <div style={{ marginTop: '8px' }}>
+                            {selectedStudent.is_active
+                              ? <span style={{ padding: '4px 10px', borderRadius: '9999px', backgroundColor: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Active Account</span>
+                              : <span style={{ padding: '4px 10px', borderRadius: '9999px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Inactive Account</span>
+                            }
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contact Info</span>
+                          <p style={{ margin: '0 0 4px 0', color: 'white', fontSize: '14px' }}>{selectedStudent.email}</p>
+                          <p style={{ margin: 0, color: '#94A3B8', fontSize: '14px' }}>{selectedStudent.mobile}</p>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Accommodation</span>
+                          <p style={{ margin: '0 0 4px 0', color: 'white', fontSize: '14px' }}>Room {selectedStudent.room_no || 'Unassigned'}</p>
+                          {selectedStudent.room_role && <p style={{ margin: 0, color: '#6C63FF', fontSize: '14px', textTransform: 'capitalize' }}>Role: {selectedStudent.room_role}</p>}
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: '16px', backgroundColor: 'rgba(108, 99, 255, 0.05)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(108, 99, 255, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ display: 'block', fontSize: '12px', color: '#64748B', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Wallet Balance</span>
+                          <h2 style={{ margin: 0, fontSize: '24px', color: parseFloat(selectedStudent.balance) > 100 ? '#00D4AA' : (parseFloat(selectedStudent.balance) < 0 ? '#FF6B6B' : '#F59E0B') }}>
+                            ₹{parseFloat(selectedStudent.balance || 0).toFixed(2)}
+                          </h2>
+                        </div>
+                        <button style={{ padding: '8px 16px', backgroundColor: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '8px', border: '1px solid rgba(108, 99, 255, 0.2)', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
+                          Add Funds
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'history' && (
+                    <div className="fade-in">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h4 style={{ color: 'white', margin: 0, fontSize: '16px' }}>Recent Transactions</h4>
+                      </div>
+                      
+                      {isHistoryLoading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '150px', color: '#94A3B8' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '32px', opacity: 0.5, marginBottom: '8px', animation: 'spin 1s linear infinite' }}>refresh</span>
+                          <p style={{ fontSize: '14px', margin: 0 }}>Loading history...</p>
+                        </div>
+                      ) : !studentHistory ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '150px', color: '#94A3B8' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '32px', opacity: 0.5, marginBottom: '8px' }}>history</span>
+                          <p style={{ fontSize: '14px', margin: 0 }}>History unavailable.</p>
+                        </div>
+                      ) : studentHistory.length === 0 ? (
+                        <div style={{ textAlign: 'center', color: '#94A3B8', padding: '32px 0' }}>
+                          No transactions found for this student.
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
+                          {studentHistory.map(txn => (
+                            <div key={txn.txn_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                              <div>
+                                <p style={{ margin: '0 0 4px 0', color: 'white', fontSize: '13px', fontWeight: '500' }}>{txn.description}</p>
+                                <p style={{ margin: 0, color: '#64748B', fontSize: '11px' }}>{new Date(txn.created_at).toLocaleString()}</p>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <span style={{ color: txn.type === 'consumption' || txn.type === 'deduction' ? '#FF6B6B' : '#00D4AA', fontWeight: 'bold', fontSize: '14px' }}>
+                                  {txn.type === 'consumption' || txn.type === 'deduction' ? '-' : '+'}₹{parseFloat(txn.amount).toFixed(2)}
+                                </span>
+                                <span style={{ color: '#94A3B8', fontSize: '11px', textTransform: 'capitalize', marginTop: '2px' }}>{txn.type}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'danger' && (
+                    <div className="fade-in">
+                      <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.05)', border: '1px solid rgba(255, 107, 107, 0.2)', borderRadius: '16px', padding: '20px' }}>
+                        <h4 style={{ color: '#FF6B6B', margin: '0 0 8px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>warning</span>
+                          Suspend Account
+                        </h4>
+                        <p style={{ color: '#94A3B8', fontSize: '13px', lineHeight: '1.5', margin: '0 0 20px 0' }}>
+                          Suspending this account will immediately revoke the student's access to the FairAC mobile app. They will not be able to log in or start AC sessions until an admin reactivates their account. Their data and wallet balance will remain intact.
+                        </p>
+                        
+                        <button 
+                          onClick={() => handleToggleStatus(selectedStudent.u_id, selectedStudent.is_active)} 
+                          style={{ width: '100%', padding: '12px', backgroundColor: selectedStudent.is_active ? 'rgba(255, 107, 107, 0.1)' : 'rgba(0, 212, 170, 0.1)', color: selectedStudent.is_active ? '#FF6B6B' : '#00D4AA', borderRadius: '8px', border: selectedStudent.is_active ? '1px solid rgba(255, 107, 107, 0.3)' : '1px solid rgba(0, 212, 170, 0.3)', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }} 
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = selectedStudent.is_active ? 'rgba(255, 107, 107, 0.2)' : 'rgba(0, 212, 170, 0.2)'} 
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = selectedStudent.is_active ? 'rgba(255, 107, 107, 0.1)' : 'rgba(0, 212, 170, 0.1)'}
+                        >
+                          {selectedStudent.is_active ? 'Suspend Student' : 'Reactivate Student'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>

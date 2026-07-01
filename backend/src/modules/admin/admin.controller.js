@@ -257,6 +257,22 @@ const inviteStudentToRoom = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// PUT /api/v1/admin/students/:id/status
+const toggleStudentStatus = async (req, res, next) => {
+  try {
+    const { is_active } = req.body;
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'is_active must be a boolean' });
+    }
+    const result = await adminService.toggleStudentStatus({
+      admin: req.user,
+      u_id: parseInt(req.params.id, 10),
+      is_active
+    });
+    res.status(200).json({ success: true, message: `Student account ${is_active ? 'activated' : 'suspended'} successfully`, data: result });
+  } catch (err) { next(err); }
+};
+
 module.exports = {
   rechargeWallet,
   deductWallet,
@@ -277,4 +293,5 @@ module.exports = {
   updateHostel,
   updateHostelAdmin,
   toggleHostelStatus,
+  toggleStudentStatus
 };
