@@ -98,11 +98,15 @@ router.get('/students', controller.getStudents);
 // PUT /api/v1/admin/students/:id/status — toggle student status
 router.put('/students/:id/status', controller.toggleStudentStatus);
 
+// POST /api/v1/admin/rooms/bulk-toggle — activate or deactivate ALL rooms
+router.post('/rooms/bulk-toggle', toggleRoomValidation, controller.bulkToggleRooms);
+
 // GET /api/v1/admin/rooms — list rooms
 router.get('/rooms', controller.getRooms);
 
 // POST /api/v1/admin/rooms — create new room
 router.post('/rooms', createRoomValidation, controller.createRoom);
+
 
 // POST /api/v1/admin/rooms/:id/toggle-status — activate/deactivate room
 router.post('/rooms/:id/toggle-status', toggleRoomValidation, controller.toggleRoomStatus);

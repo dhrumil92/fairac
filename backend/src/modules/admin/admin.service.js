@@ -240,12 +240,18 @@ const getRooms = async ({ admin }) => {
 
   const result = await db.query(
     `SELECT
-       r.r_id, r.room_no, r.room_name, r.capacity, r.rate_per_unit, r.is_active,
+       r.r_id, r.room_no, r.room_name, r.capacity, r.is_active,
        (SELECT COUNT(*) FROM room_members WHERE r_id = r.r_id AND left_at IS NULL) AS member_count,
        (SELECT COUNT(*) FROM sessions WHERE r_id = r.r_id AND status = 'active') AS active_sessions,
-       owner.name AS owner_name
+       owner.name AS owner_name,
+       CASE 
+         WHEN d.device_id IS NULL THEN 'unassigned'
+         WHEN d.status = 'online' AND EXTRACT(EPOCH FROM (NOW() - d.last_heartbeat)) < 60 THEN 'online' 
+         ELSE 'offline' 
+       END AS device_status
      FROM rooms r
      LEFT JOIN users owner ON owner.u_id = r.created_by
+     LEFT JOIN devices d ON d.r_id = r.r_id
      WHERE ($1::int IS NULL OR r.hostel_id = $1)
      ORDER BY r.room_no ASC`,
      [admin.hostel_id]
@@ -313,6 +319,36 @@ const toggleRoomStatus = async ({ admin, room_id, is_active }) => {
 };
 
 // =============================================================================
+// bulkToggleRooms
+// =============================================================================
+// Activates or deactivates ALL rooms in the admin's hostel at once.
+// Safety check: prevents deactivation if any room has a live active session.
+//
+const bulkToggleRooms = async ({ admin, is_active }) => {
+  assertAdmin(admin);
+
+  // Safety guard: block deactivation if there are any live sessions
+  if (!is_active) {
+    const liveCheck = await db.query(
+      `SELECT s.session_id FROM sessions s
+       JOIN rooms r ON r.r_id = s.r_id
+       WHERE r.hostel_id = $1 AND s.status = 'active' AND r.is_active = true
+       LIMIT 1`,
+      [admin.hostel_id]
+    );
+    if (liveCheck.rows.length > 0) {
+      throw createError(409, 'Cannot deactivate all rooms while there are active AC sessions running. Please force-stop all sessions first.');
+    }
+  }
+
+  const result = await db.query(
+    `UPDATE rooms SET is_active = $1 WHERE hostel_id = $2`,
+    [is_active, admin.hostel_id]
+  );
+  return { rooms_affected: result.rowCount };
+};
+
+// =============================================================================
 // getActiveSessions
 // =============================================================================
 // Lists all currently active sessions across the admin's hostel.
@@ -363,8 +399,16 @@ const getDashboardOverview = async ({ admin }) => {
        (SELECT COALESCE(SUM(cr.units_consumed), 0) FROM consumption_records cr
         JOIN sessions s ON s.session_id = cr.session_id
         JOIN rooms r ON r.r_id = s.r_id
-        WHERE ($1::int IS NULL OR r.hostel_id = $1))
+        WHERE ($1::int IS NULL OR r.hostel_id = $1) 
+          AND date_trunc('month', cr.recorded_at) = date_trunc('month', CURRENT_DATE))
          AS total_units_consumed,
+
+       (SELECT COALESCE(SUM(cr.units_consumed), 0) FROM consumption_records cr
+        JOIN sessions s ON s.session_id = cr.session_id
+        JOIN rooms r ON r.r_id = s.r_id
+        WHERE ($1::int IS NULL OR r.hostel_id = $1) 
+          AND date_trunc('month', cr.recorded_at) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month'))
+         AS last_month_units_consumed,
 
        (SELECT COALESCE(SUM(wt.amount), 0) FROM wallet_transactions wt
         JOIN wallets w ON w.wallet_id = wt.wallet_id
@@ -378,7 +422,32 @@ const getDashboardOverview = async ({ admin }) => {
         JOIN sessions s ON s.session_id = cr.session_id
         JOIN rooms r ON r.r_id = s.r_id
         WHERE ($1::int IS NULL OR r.hostel_id = $1))
-         AS total_billed
+         AS total_billed,
+         
+       (SELECT COALESCE(SUM(d.current_power_w), 0) FROM devices d
+        JOIN rooms r ON r.r_id = d.r_id
+        JOIN sessions s ON s.r_id = r.r_id
+        WHERE ($1::int IS NULL OR r.hostel_id = $1)
+          AND s.status = 'active'
+          AND d.status = 'online' 
+          AND EXTRACT(EPOCH FROM (NOW() - d.last_heartbeat)) < 60)
+         AS live_power_w,
+         
+       (SELECT COUNT(*) FROM devices d
+        JOIN rooms r ON r.r_id = d.r_id
+        WHERE ($1::int IS NULL OR r.hostel_id = $1)
+          AND d.status = 'online' 
+          AND EXTRACT(EPOCH FROM (NOW() - d.last_heartbeat)) < 60)
+         AS online_devices,
+         
+       (SELECT COUNT(*) FROM devices d
+        JOIN rooms r ON r.r_id = d.r_id
+        WHERE ($1::int IS NULL OR r.hostel_id = $1)
+          AND (d.status = 'offline' OR EXTRACT(EPOCH FROM (NOW() - d.last_heartbeat)) >= 60))
+         AS offline_devices,
+         
+       (SELECT rate_per_unit FROM hostels WHERE hostel_id = $1 LIMIT 1)
+         AS current_rate
     `,
     [admin.hostel_id]
   );
@@ -716,8 +785,6 @@ const removeMemberFromRoom = async ({ admin, room_id, u_id }) => {
       const remainingResult = await client.query(`SELECT u_id FROM room_members WHERE r_id = $1 AND left_at IS NULL ORDER BY joined_at ASC LIMIT 1`, [room_id]);
       if (remainingResult.rows.length > 0) {
         await client.query(`UPDATE room_members SET role = 'owner' WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`, [room_id, remainingResult.rows[0].u_id]);
-      } else {
-        await client.query(`UPDATE rooms SET is_active = FALSE WHERE r_id = $1`, [room_id]);
       }
     }
     await client.query('COMMIT');
@@ -804,4 +871,5 @@ module.exports = {
   updateHostelAdmin,
   toggleHostelStatus,
   toggleStudentStatus,
+  bulkToggleRooms,
 };

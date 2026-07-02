@@ -73,9 +73,9 @@ const query = async (text, params) => {
   const duration = Date.now() - start;
 
   // Log queries in development mode only (never in production — security risk)
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`📋 SQL [${duration}ms]:`, text.replace(/\s+/g, ' ').trim());
-  }
+  // if (process.env.NODE_ENV === 'development') {
+  //   console.log(`📋 SQL [${duration}ms]:`, text.replace(/\s+/g, ' ').trim());
+  // }
 
   return result;
 };

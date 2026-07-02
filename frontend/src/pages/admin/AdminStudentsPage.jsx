@@ -1,7 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../api/axios';
+
+// Generates page numbers to show: always First, Last, current ±1, with '...' gaps
+const getPaginationRange = (current, total) => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = [];
+  const addPage = (p) => { if (!pages.includes(p)) pages.push(p); };
+  addPage(1);
+  if (current > 3) pages.push('...');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) addPage(p);
+  if (current < total - 2) pages.push('...');
+  addPage(total);
+  return pages;
+};
 
 const AdminStudentsPage = () => {
   const { user } = useAuth();
@@ -13,6 +27,15 @@ const AdminStudentsPage = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [studentHistory, setStudentHistory] = useState(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+
+  // Filter & Pagination States
+  const [filterType, setFilterType] = useState('all');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef(null);
+  const portalFilterDropdownRef = useRef(null);
+  const [filterDropdownRect, setFilterDropdownRect] = useState(null);
+  const [studentPage, setStudentPage] = useState(1);
+  const STUDENTS_PER_PAGE = 7;
 
   const fetchStudents = async () => {
     try {
@@ -63,6 +86,25 @@ const AdminStudentsPage = () => {
     }
   }, [activeTab, selectedStudent]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target) && (!portalFilterDropdownRef.current || !portalFilterDropdownRef.current.contains(event.target))) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredStudents = students.filter(st => {
+    if (filterType === 'active') return st.is_active === true;
+    if (filterType === 'inactive') return st.is_active === false;
+    if (filterType === 'owner') return st.room_role === 'owner';
+    if (filterType === 'no_room') return !st.room_no;
+    if (filterType === 'low_balance') return parseFloat(st.balance || 0) < 50;
+    return true;
+  });
+
   return (
     <div className="page-layout" style={{ backgroundColor: '#0F1729', color: '#F8FAFC', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
@@ -89,7 +131,7 @@ const AdminStudentsPage = () => {
 
             {/* Student Directory Table */}
             <div className="glass-card" style={{ borderRadius: '24px', backgroundColor: 'rgba(26, 37, 64, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: 'white' }}>All Students ({students.length})</h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{ position: 'relative' }}>
@@ -102,9 +144,45 @@ const AdminStudentsPage = () => {
                       style={{ padding: '10px 16px 10px 40px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', width: '250px' }}
                     />
                   </div>
-                  <button style={{ padding: '10px', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>filter_list</span>
-                  </button>
+                  <div style={{ position: 'relative' }} ref={filterDropdownRef}>
+                    <button 
+                      onClick={() => {
+                        if (!isFilterDropdownOpen && filterDropdownRef.current) setFilterDropdownRect(filterDropdownRef.current.getBoundingClientRect());
+                        setIsFilterDropdownOpen(!isFilterDropdownOpen);
+                      }}
+                      style={{ padding: '10px', borderRadius: '12px', backgroundColor: filterType !== 'all' ? 'rgba(108, 99, 255, 0.2)' : 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: filterType !== 'all' ? '#6C63FF' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>filter_list</span>
+                    </button>
+                    {isFilterDropdownOpen && filterDropdownRect && createPortal(
+                      <div
+                        ref={portalFilterDropdownRef}
+                        style={{
+                          position: 'fixed', top: filterDropdownRect.bottom + 8, left: filterDropdownRect.right - 150, width: '150px',
+                          backgroundColor: '#0F1729', border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '12px', zIndex: 9999, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                        }}
+                      >
+                        {[
+                          { id: 'all', label: 'All Students' },
+                          { id: 'active', label: 'Active Only' },
+                          { id: 'inactive', label: 'Inactive Only' },
+                          { id: 'owner', label: 'Owners Only' },
+                          { id: 'no_room', label: 'Not in a Room' },
+                          { id: 'low_balance', label: 'Low Balance' }
+                        ].map(opt => (
+                          <div
+                            key={opt.id}
+                            style={{ padding: '12px 16px', fontSize: '12px', fontWeight: filterType === opt.id ? 'bold' : 'normal', cursor: 'pointer', color: filterType === opt.id ? 'white' : '#8892B0', backgroundColor: filterType === opt.id ? 'rgba(108, 99, 255, 0.2)' : 'transparent', borderBottom: opt.id !== 'low_balance' ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                            onMouseEnter={(e) => { if (filterType !== opt.id) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)' }}
+                            onMouseLeave={(e) => { if (filterType !== opt.id) e.currentTarget.style.backgroundColor = 'transparent' }}
+                            onClick={() => { setFilterType(opt.id); setStudentPage(1); setIsFilterDropdownOpen(false); }}
+                          >
+                            {opt.label}
+                          </div>
+                        ))}
+                      </div>, document.body
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -112,64 +190,113 @@ const AdminStudentsPage = () => {
                 <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                   <thead style={{ backgroundColor: 'rgba(255,255,255,0.05)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94A3B8' }}>
                     <tr>
-                      <th style={{ padding: '16px 24px' }}>Student</th>
-                      <th style={{ padding: '16px 24px' }}>Contact</th>
-                      <th style={{ padding: '16px 24px' }}>Room</th>
-                      <th style={{ padding: '16px 24px' }}>Status</th>
-                      <th style={{ padding: '16px 24px' }}>Wallet Bal.</th>
-                      <th style={{ padding: '16px 24px', textAlign: 'right' }}>Action</th>
+                      <th style={{ padding: '10px 24px' }}>Student</th>
+                      <th style={{ padding: '10px 24px' }}>Room</th>
+                      <th style={{ padding: '10px 24px' }}>Status</th>
+                      <th style={{ padding: '10px 24px' }}>Wallet Bal.</th>
+                      <th style={{ padding: '10px 24px', textAlign: 'right' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody style={{ divideY: '1px solid rgba(255,255,255,0.05)' }}>
-                    {isLoading && students.length === 0 ? (
-                      <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>Loading students...</td></tr>
-                    ) : students.length === 0 ? (
-                      <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No students found</td></tr>
-                    ) : students.map(st => (
-                      <tr key={st.u_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background-color 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                        <td style={{ padding: '16px 24px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF', fontSize: '12px', fontWeight: 'bold' }}>
-                              {st.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <span style={{ fontSize: '14px', fontWeight: '600', color: 'white', display: 'block' }}>{st.name}</span>
-                              <span style={{ fontSize: '10px', color: '#94A3B8' }}>ID: {st.u_id}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '16px 24px' }}>
-                          <span style={{ fontSize: '12px', color: '#CBD5E1', display: 'block' }}>{st.email}</span>
-                          <span style={{ fontSize: '12px', color: '#94A3B8' }}>{st.mobile}</span>
-                        </td>
-                        <td style={{ padding: '16px 24px' }}>
-                          <span style={{ fontSize: '14px', color: 'white', fontWeight: '500' }}>{st.room_no || 'None'}</span>
-                          {st.room_role && <span style={{ fontSize: '10px', color: '#6C63FF', display: 'block', textTransform: 'capitalize' }}>{st.room_role}</span>}
-                        </td>
-                        <td style={{ padding: '16px 24px' }}>
-                          {st.is_active
-                            ? <span style={{ padding: '4px 8px', borderRadius: '9999px', backgroundColor: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Active</span>
-                            : <span style={{ padding: '4px 8px', borderRadius: '9999px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Inactive</span>
-                          }
-                        </td>
-                        <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600', color: parseFloat(st.balance) > 100 ? '#00D4AA' : (parseFloat(st.balance) < 0 ? '#FF6B6B' : '#F59E0B') }}>
-                          ₹{parseFloat(st.balance || 0).toFixed(2)}
-                        </td>
-                        <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                          <button
-                            onClick={() => { setSelectedStudent(st); setActiveTab('profile'); }}
-                            style={{ padding: '6px 16px', backgroundColor: '#6C63FF', color: 'white', fontSize: '12px', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
-                            onMouseOver={e => e.currentTarget.style.opacity = 0.8}
-                            onMouseOut={e => e.currentTarget.style.opacity = 1}
-                          >
-                            View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+                      const paginatedStudents = filteredStudents.slice((studentPage - 1) * STUDENTS_PER_PAGE, studentPage * STUDENTS_PER_PAGE);
+
+                      if (isLoading && students.length === 0) return (
+                        <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>Loading students...</td></tr>
+                      );
+                      if (filteredStudents.length === 0) return (
+                        <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>No students found</td></tr>
+                      );
+                      return (
+                        <>
+                          {paginatedStudents.map(st => (
+                            <tr key={st.u_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background-color 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                              <td style={{ padding: '10px 24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6C63FF', fontSize: '12px', fontWeight: 'bold' }}>
+                                    {st.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '14px', fontWeight: '600', color: 'white', display: 'block' }}>{st.name}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '10px 24px' }}>
+                                <span style={{ fontSize: '14px', color: 'white', fontWeight: '500' }}>{st.room_no || 'None'}</span>
+                                {st.room_role && <span style={{ fontSize: '10px', color: '#6C63FF', display: 'block', textTransform: 'capitalize' }}>{st.room_role}</span>}
+                              </td>
+                              <td style={{ padding: '10px 24px' }}>
+                                {st.is_active
+                                  ? <span style={{ padding: '4px 8px', borderRadius: '9999px', backgroundColor: 'rgba(0, 212, 170, 0.1)', color: '#00D4AA', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Active</span>
+                                  : <span style={{ padding: '4px 8px', borderRadius: '9999px', backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Inactive</span>
+                                }
+                              </td>
+                              <td style={{ padding: '10px 24px', fontSize: '14px', fontWeight: '600', color: parseFloat(st.balance) > 100 ? '#00D4AA' : (parseFloat(st.balance) < 0 ? '#FF6B6B' : '#F59E0B') }}>
+                                ₹{parseFloat(st.balance || 0).toFixed(2)}
+                              </td>
+                              <td style={{ padding: '10px 24px', textAlign: 'right' }}>
+                                <button
+                                  onClick={() => { setSelectedStudent(st); setActiveTab('profile'); }}
+                                  style={{ padding: '6px 16px', backgroundColor: '#6C63FF', color: 'white', fontSize: '12px', fontWeight: 'bold', borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
+                                  onMouseOver={e => e.currentTarget.style.opacity = 0.8}
+                                  onMouseOut={e => e.currentTarget.style.opacity = 1}
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {filteredStudents.length > 0 && Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE) > 1 && (() => {
+                const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+                const pages = getPaginationRange(studentPage, totalPages);
+                return (
+                  <div style={{ padding: '12px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.01)' }}>
+                    <div style={{ fontSize: '13px', color: '#94A3B8' }}>
+                      Showing {((studentPage - 1) * STUDENTS_PER_PAGE) + 1} to {Math.min(studentPage * STUDENTS_PER_PAGE, filteredStudents.length)} of {filteredStudents.length} students
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => setStudentPage(p => Math.max(1, p - 1))}
+                        disabled={studentPage === 1}
+                        style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: studentPage === 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)', color: studentPage === 1 ? '#64748B' : 'white', border: 'none', cursor: studentPage === 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        Prev
+                      </button>
+                      {pages.map((p, i) => (
+                        <button
+                          key={i}
+                          onClick={() => p !== '...' && setStudentPage(p)}
+                          style={{
+                            padding: '6px 12px', borderRadius: '8px',
+                            backgroundColor: studentPage === p ? '#6C63FF' : 'rgba(255,255,255,0.05)',
+                            color: studentPage === p ? 'white' : '#94A3B8',
+                            border: 'none', cursor: p === '...' ? 'default' : 'pointer',
+                            fontWeight: studentPage === p ? 'bold' : 'normal'
+                          }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setStudentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={studentPage === totalPages}
+                        style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: studentPage === totalPages ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)', color: studentPage === totalPages ? '#64748B' : 'white', border: 'none', cursor: studentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
           </div>

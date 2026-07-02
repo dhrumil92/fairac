@@ -67,7 +67,7 @@ const recordTelemetry = async (device_id, session_id, energy_kwh, power_w) => {
   if (sessionRes.rows.length > 0 && sessionRes.rows[0].status === 'active') {
     // Update the total units consumed by adding the new incremental amount
     await db.query(
-      `UPDATE sessions SET total_units = total_units + $1 WHERE session_id = $2`,
+      `UPDATE sessions SET total_units = COALESCE(total_units, 0) + $1 WHERE session_id = $2`,
       [energy_kwh, session_id]
     );
     await db.query(

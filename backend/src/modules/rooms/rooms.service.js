@@ -74,14 +74,23 @@ const createRoom = async ({ u_id, room_no, room_name, capacity, rate_per_unit })
     let room;
     if (existingRoomResult.rows.length > 0) {
       const existingRoom = existingRoomResult.rows[0];
-      if (existingRoom.is_active) {
+      if (existingRoom.is_active === false) {
+        throw createError(403, `Room number "${room_no}" is currently disabled for maintenance.`);
+      }
+
+      // Room is active, check if it's occupied
+      const occupantCheck = await client.query(
+        `SELECT COUNT(*) as count FROM room_members WHERE r_id = $1 AND left_at IS NULL`,
+        [existingRoom.r_id]
+      );
+      if (parseInt(occupantCheck.rows[0].count, 10) > 0) {
         throw createError(409, `Room number "${room_no}" already exists and is currently occupied.`);
       }
 
-      // Room exists but is inactive -> CLAIM IT
+      // Room exists, is active, and is empty -> CLAIM IT
       const updateResult = await client.query(
         `UPDATE rooms 
-         SET is_active = TRUE, created_by = $1, room_name = $2, capacity = $3, rate_per_unit = $4
+         SET created_by = $1, room_name = $2, capacity = $3, rate_per_unit = $4
          WHERE r_id = $5
          RETURNING r_id, room_no, room_name, capacity, rate_per_unit, created_at`,
         [u_id, room_name ? room_name.trim() : null, capacity || 4, rate_per_unit || 8.00, existingRoom.r_id]
@@ -90,8 +99,8 @@ const createRoom = async ({ u_id, room_no, room_name, capacity, rate_per_unit })
     } else {
       // Insert new room
       const insertResult = await client.query(
-        `INSERT INTO rooms (hostel_id, created_by, room_no, room_name, capacity, rate_per_unit)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO rooms (hostel_id, created_by, room_no, room_name, capacity, rate_per_unit, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
          RETURNING r_id, room_no, room_name, capacity, rate_per_unit, created_at`,
         [hostel_id, u_id, norm_room_no, room_name ? room_name.trim() : null, capacity || 4, rate_per_unit || 8.00]
       );
@@ -106,6 +115,12 @@ const createRoom = async ({ u_id, room_no, room_name, capacity, rate_per_unit })
        ON CONFLICT (r_id, u_id) DO UPDATE 
        SET left_at = NULL, joined_at = NOW(), role = 'owner'`,
       [room.r_id, u_id]
+    );
+
+    // Auto-reject any pending invitations since the user is now in a room
+    await client.query(
+      `UPDATE room_invitations SET status = 'rejected', responded_at = NOW() WHERE sent_to = $1 AND status = 'pending'`,
+      [u_id]
     );
 
     await client.query('COMMIT');
@@ -375,10 +390,10 @@ const acceptInvitation = async ({ u_id, invitation_id }) => {
       [invitation_id]
     );
 
-    // If the room was empty, claiming it reactivates it
+    // If the room was empty, claiming it makes them the owner
     if (currentMembersCount === 0) {
       await client.query(
-        `UPDATE rooms SET is_active = TRUE, created_by = $1 WHERE r_id = $2`,
+        `UPDATE rooms SET created_by = $1 WHERE r_id = $2`,
         [u_id, invite.room_id]
       );
     }
@@ -391,6 +406,12 @@ const acceptInvitation = async ({ u_id, invitation_id }) => {
        ON CONFLICT (r_id, u_id) DO UPDATE 
        SET left_at = NULL, joined_at = NOW(), role = $3`,
       [invite.room_id, u_id, roleToAssign]
+    );
+
+    // Auto-reject any OTHER pending invitations since the user is now in a room
+    await client.query(
+      `UPDATE room_invitations SET status = 'rejected', responded_at = NOW() WHERE sent_to = $1 AND status = 'pending'`,
+      [u_id]
     );
 
     await client.query('COMMIT');
@@ -516,13 +537,8 @@ const leaveRoom = async ({ u_id, room_id }) => {
           `UPDATE room_members SET role = 'owner' WHERE r_id = $1 AND u_id = $2 AND left_at IS NULL`,
           [room_id, newOwnerId]
         );
-      } else {
-        // No members left → deactivate room
-        await client.query(
-          `UPDATE rooms SET is_active = FALSE WHERE r_id = $1`,
-          [room_id]
-        );
       }
+      // If no members left, we do nothing to rooms.is_active. It stays administratively active but naturally empty.
     }
 
     await client.query('COMMIT');

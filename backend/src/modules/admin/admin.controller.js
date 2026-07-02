@@ -110,6 +110,17 @@ const toggleRoomStatus = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// POST /api/v1/admin/rooms/bulk-toggle
+const bulkToggleRooms = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { is_active } = req.body;
+    const result = await adminService.bulkToggleRooms({ admin: req.user, is_active });
+    const action = is_active ? 'activated' : 'deactivated';
+    res.status(200).json({ success: true, message: `All rooms have been ${action} successfully.`, data: result });
+  } catch (err) { next(err); }
+};
+
 // GET /api/v1/admin/sessions/active
 const getActiveSessions = async (req, res, next) => {
   try {
@@ -293,5 +304,6 @@ module.exports = {
   updateHostel,
   updateHostelAdmin,
   toggleHostelStatus,
-  toggleStudentStatus
+  toggleStudentStatus,
+  bulkToggleRooms,
 };

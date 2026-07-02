@@ -32,12 +32,11 @@ float simulatedPowerW = 1400.0; // 1.4 kW AC
 bool wasConnected = false; // Tracks connection state for burst blink
 unsigned long disconnectedStartMillis = 0; // Tracks when WiFi was lost
 
-// On the ESP32-C3 SuperMini, the onboard blue LED is typically connected to GPIO 8 (Active LOW)
-const int WIFI_LED_PIN = 8; 
+// On the ESP32 DevKit V1, the onboard blue LED is typically connected to GPIO 2 (Active HIGH)
+const int WIFI_LED_PIN = 2; 
 
-
-// The BOOT button is on GPIO 9 (Active LOW)
-const int BOOT_BTN_PIN = 9;
+// The BOOT button on ESP32 DevKit V1 is on GPIO 0 (Active LOW)
+const int BOOT_BTN_PIN = 0;
 
 Ticker ticker;
 
@@ -50,14 +49,14 @@ void tick() {
 void setup() {
   Serial.begin(115200);
   pinMode(WIFI_LED_PIN, OUTPUT);
-  digitalWrite(WIFI_LED_PIN, HIGH); // Turn OFF initially (Active LOW)
+  digitalWrite(WIFI_LED_PIN, LOW); // Turn OFF initially (Active HIGH)
   
   pinMode(BOOT_BTN_PIN, INPUT_PULLUP);
   
   delay(1000);
 
   Serial.println("\n=================================");
-  Serial.println("FairAC IoT - ESP32-C3 SuperMini");
+  Serial.println("FairAC IoT - ESP32 DevKit V1");
   Serial.println("=================================");
   
   Serial.print("Initializing WiFiManager...");
@@ -85,20 +84,20 @@ void setup() {
   // Connected! Stop the ticker
   ticker.detach();
   // Make sure it's off before doing the burst
-  digitalWrite(WIFI_LED_PIN, HIGH); 
+  digitalWrite(WIFI_LED_PIN, LOW); 
 
   // Connected successfully! Do 10 fast blinks (50ms)
   for (int i = 0; i < 10; i++) {
-    digitalWrite(WIFI_LED_PIN, LOW);
-    delay(50);
     digitalWrite(WIFI_LED_PIN, HIGH);
+    delay(50);
+    digitalWrite(WIFI_LED_PIN, LOW);
     delay(50);
   }
 
   wasConnected = true;
 
-  // Turn solid ON when connected (Active LOW)
-  digitalWrite(WIFI_LED_PIN, LOW); 
+  // Turn solid ON when connected (Active HIGH)
+  digitalWrite(WIFI_LED_PIN, HIGH); 
 
   Serial.println("\nWiFi Connected!");
   Serial.print("IP Address: ");
@@ -120,12 +119,12 @@ void loop() {
   // ---------------------------------------------------------
   // Manual Reset via BOOT Button (Wipe WiFi Credentials)
   // ---------------------------------------------------------
-  // If the BOOT button (GPIO 9) is pressed (LOW) for 3 seconds, wipe WiFi settings and restart
+  // If the BOOT button (GPIO 0) is pressed (LOW) for 3 seconds, wipe WiFi settings and restart
   if (digitalRead(BOOT_BTN_PIN) == LOW) {
     delay(3000); // Wait 3 seconds to confirm it's a long press
     if (digitalRead(BOOT_BTN_PIN) == LOW) {
       Serial.println("\nWiFi Reset requested via button! Wiping credentials and restarting...");
-      digitalWrite(WIFI_LED_PIN, HIGH); // Turn off LED
+      digitalWrite(WIFI_LED_PIN, LOW); // Turn off LED
       
       WiFiManager wm;
       wm.resetSettings(); // Erase saved WiFi password
@@ -142,21 +141,21 @@ void loop() {
     if (!wasConnected) {
       // Just reconnected! Do 10 fast blinks
       for (int i = 0; i < 10; i++) {
-        digitalWrite(WIFI_LED_PIN, LOW);
-        delay(50);
         digitalWrite(WIFI_LED_PIN, HIGH);
+        delay(50);
+        digitalWrite(WIFI_LED_PIN, LOW);
         delay(50);
       }
       wasConnected = true;
     }
     disconnectedStartMillis = 0; // Reset disconnect timer since we are connected!
     
-    // Solid continuously turned on light when connected (Active LOW)
-    digitalWrite(WIFI_LED_PIN, LOW); 
+    // Solid continuously turned on light when connected (Active HIGH)
+    digitalWrite(WIFI_LED_PIN, HIGH); 
   } else {
     wasConnected = false;
     // Blink when disconnected (e.g., 500ms ON / 500ms OFF)
-    digitalWrite(WIFI_LED_PIN, (currentMillis / 500) % 2 ? LOW : HIGH); 
+    digitalWrite(WIFI_LED_PIN, (currentMillis / 500) % 2 ? HIGH : LOW); 
     
     // Auto-Recovery: If disconnected for more than 30 seconds, force a restart
     if (disconnectedStartMillis == 0) {
