@@ -629,18 +629,24 @@ const getReports = async ({ admin, month, year }) => {
   const targetYear  = year  || new Date().getFullYear();
 
   // Room-wise report
+  // NOTE: We use a pre-aggregated subquery for consumption_records (cr_agg) so the
+  // join is always 1-to-1 with sessions and avoids multiplying s.total_units.
   const roomReport = await db.query(
     `SELECT
-       r.room_no, r.room_name,
-       COUNT(DISTINCT s.session_id)      AS sessions_count,
-       COALESCE(SUM(s.total_units), 0)   AS total_units,
-       COALESCE(SUM(cr.cost), 0)         AS total_cost
+       r.r_id, r.room_no, r.room_name,
+       COUNT(DISTINCT s.session_id)            AS sessions_count,
+       COALESCE(SUM(s.total_units), 0)         AS total_units,
+       COALESCE(SUM(cr_agg.total_cost), 0)     AS total_cost
      FROM rooms r
      LEFT JOIN sessions s ON s.r_id = r.r_id
        AND EXTRACT(MONTH FROM s.start_time) = $2
        AND EXTRACT(YEAR  FROM s.start_time) = $3
        AND s.status = 'completed'
-     LEFT JOIN consumption_records cr ON cr.session_id = s.session_id
+     LEFT JOIN (
+       SELECT session_id, SUM(cost) AS total_cost
+       FROM consumption_records
+       GROUP BY session_id
+     ) cr_agg ON cr_agg.session_id = s.session_id
      WHERE ($1::int IS NULL OR r.hostel_id = $1)
      GROUP BY r.r_id, r.room_no, r.room_name
      ORDER BY total_cost DESC`,
@@ -673,6 +679,79 @@ const getReports = async ({ admin, month, year }) => {
     by_room: roomReport.rows,
     by_student: studentReport.rows,
   };
+};
+
+// =============================================================================
+// getChartData
+// =============================================================================
+// Returns time-series consumption data for charts.
+// mode='day'   → hourly breakdown for a specific date (peak hours)
+// mode='month' → daily breakdown for a specific month (30-day trend)
+//
+const getChartData = async ({ admin, mode, date, month, year }) => {
+  assertAdmin(admin);
+
+  if (mode === 'day') {
+    // Hourly breakdown for a single day — shows peak hours
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const result = await db.query(
+      `SELECT
+         EXTRACT(HOUR FROM cr.recorded_at AT TIME ZONE 'Asia/Kolkata') AS hour,
+         COALESCE(SUM(cr.units_consumed), 0)                           AS kwh,
+         COALESCE(SUM(cr.cost), 0)                                     AS cost
+       FROM consumption_records cr
+       JOIN sessions s ON s.session_id = cr.session_id
+       JOIN rooms r ON r.r_id = s.r_id
+       WHERE ($1::int IS NULL OR r.hostel_id = $1)
+         AND (cr.recorded_at AT TIME ZONE 'Asia/Kolkata')::date = $2::date
+       GROUP BY hour
+       ORDER BY hour ASC`,
+      [admin.hostel_id, targetDate]
+    );
+    // Fill in all 24 hours with 0 for missing hours so the chart is continuous.
+    // Start from 01:00 and end at 00:00 (midnight) — more intuitive for daily usage.
+    const hourlyMap = {};
+    result.rows.forEach(r => { hourlyMap[parseInt(r.hour)] = r; });
+    const data = Array.from({ length: 24 }, (_, i) => {
+      const h = (i + 1) % 24; // 01, 02, ..., 23, 00
+      return {
+        label: `${String(h).padStart(2, '0')}:00`,
+        kwh:   parseFloat(hourlyMap[h]?.kwh   || 0),
+        cost:  parseFloat(hourlyMap[h]?.cost  || 0),
+      };
+    });
+    return { mode: 'day', date: targetDate, data };
+
+  } else {
+    // Daily breakdown for a month — 30-day trend
+    const targetMonth = month || new Date().getMonth() + 1;
+    const targetYear  = year  || new Date().getFullYear();
+    const result = await db.query(
+      `SELECT
+         EXTRACT(DAY FROM cr.recorded_at AT TIME ZONE 'Asia/Kolkata') AS day,
+         COALESCE(SUM(cr.units_consumed), 0)                          AS kwh,
+         COALESCE(SUM(cr.cost), 0)                                    AS cost
+       FROM consumption_records cr
+       JOIN sessions s ON s.session_id = cr.session_id
+       JOIN rooms r ON r.r_id = s.r_id
+       WHERE ($1::int IS NULL OR r.hostel_id = $1)
+         AND EXTRACT(MONTH FROM cr.recorded_at AT TIME ZONE 'Asia/Kolkata') = $2
+         AND EXTRACT(YEAR  FROM cr.recorded_at AT TIME ZONE 'Asia/Kolkata') = $3
+       GROUP BY day
+       ORDER BY day ASC`,
+      [admin.hostel_id, targetMonth, targetYear]
+    );
+    // Fill in all days in the month with 0 for missing days
+    const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const dayMap = {};
+    result.rows.forEach(r => { dayMap[parseInt(r.day)] = r; });
+    const data = Array.from({ length: daysInMonth }, (_, i) => ({
+      label: `${String(i + 1).padStart(2, '0')}`,
+      kwh:   parseFloat(dayMap[i + 1]?.kwh  || 0),
+      cost:  parseFloat(dayMap[i + 1]?.cost || 0),
+    }));
+    return { mode: 'month', month: targetMonth, year: targetYear, data };
+  }
 };
 
 // =============================================================================
@@ -862,6 +941,7 @@ module.exports = {
   getHostelsOverview,
   createHostel,
   getReports,
+  getChartData,
   getTransactions,
   getRoomDetails,
   removeMemberFromRoom,

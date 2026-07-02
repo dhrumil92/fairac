@@ -114,6 +114,9 @@ router.post('/rooms/:id/toggle-status', toggleRoomValidation, controller.toggleR
 // GET /api/v1/admin/sessions/active — active sessions across hostel
 router.get('/sessions/active', controller.getActiveSessions);
 
+// GET /api/v1/admin/reports/chart — chart data (?mode=day&date=... OR ?mode=month&month=...&year=...)
+router.get('/reports/chart', controller.getChartData);
+
 // GET /api/v1/admin/reports — monthly reports (?month=6&year=2026)
 router.get('/reports', controller.getReports);
 

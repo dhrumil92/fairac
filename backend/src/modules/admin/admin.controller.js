@@ -213,6 +213,21 @@ const getReports = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// GET /api/v1/admin/reports/chart
+// ?mode=day&date=2026-07-03  OR  ?mode=month&month=7&year=2026
+const getChartData = async (req, res, next) => {
+  try {
+    const data = await adminService.getChartData({
+      admin: req.user,
+      mode:  req.query.mode  || 'month',
+      date:  req.query.date  || null,
+      month: req.query.month ? parseInt(req.query.month, 10) : null,
+      year:  req.query.year  ? parseInt(req.query.year, 10)  : null,
+    });
+    res.status(200).json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
 // GET /api/v1/admin/transactions
 // ?page=1&limit=7
 const getTransactions = async (req, res, next) => {
@@ -296,6 +311,7 @@ module.exports = {
   getHostels,
   addHostel,
   getReports,
+  getChartData,
   getTransactions,
   getRoomDetails,
   removeMemberFromRoom,

@@ -77,7 +77,7 @@ const AdminDashboardPage = () => {
             <StatCard icon="currency_rupee" title="Rate / Unit" value={`₹${parseFloat(overview?.current_rate || 0).toFixed(2)}`} color="#F43F5E" />
             <StatCard icon="energy_savings_leaf" title="Monthly Power (kWh)" value={parseFloat(overview?.total_units_consumed || 0).toFixed(2)} color="#06B6D4" />
             <StatCard icon="history" title="Last Month Power (kWh)" value={parseFloat(overview?.last_month_units_consumed || 0).toFixed(2)} color="#8B5CF6" />
-            <StatCard icon="payments" title="Total Billed" value={`₹${parseFloat(overview?.total_billed || 0).toFixed(2)}`} color="#00D4AA" />
+            <StatCard icon="payments" title="Total Billed" value={`₹${parseFloat(overview?.total_billed || 0).toFixed(2)}`} color="#00D4AA" onClick={() => navigate('/admin/wallet')} />
             <StatCard icon="account_balance" title="Wallet Pool" value={`₹${parseFloat(overview?.total_recharged || 0).toFixed(2)}`} color="#6366F1" />
           </div>
 
