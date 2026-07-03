@@ -1,7 +1,7 @@
-admin page ui polish karvanu che
+...admin page ui polish karvanu che
 
 responsive
-circuit diagram for iot
+...circuit diagram for iot
 
 console ni errors solve karvani che
 
