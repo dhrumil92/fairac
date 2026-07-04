@@ -19,11 +19,30 @@ const recordHeartbeat = async (device_id, mac_address, status, uptime) => {
 
   if (r_id) {
     const sessionRes = await db.query(
-      `SELECT session_id FROM sessions WHERE r_id = $1 AND status = 'active' LIMIT 1`,
+      `SELECT session_id, created_by FROM sessions WHERE r_id = $1 AND status = 'active' LIMIT 1`,
       [r_id]
     );
     if (sessionRes.rows.length > 0) {
-      return { success: true, active_session_id: sessionRes.rows[0].session_id };
+      const activeSession = sessionRes.rows[0];
+      
+      // If the hardware reports a FAULT, officially end the session in the backend immediately.
+      if (status === 'fault') {
+        try {
+          const sessionsService = require('../sessions/sessions.service');
+          await sessionsService.endSession({
+            u_id: activeSession.created_by,
+            role: 'admin',
+            session_id: activeSession.session_id,
+            total_units: 0 // Will fallback to actual DB value
+          });
+          console.log(`[IoT] E-Stop detected on device ${device_id}. Auto-ended session ${activeSession.session_id}.`);
+        } catch (e) {
+          console.error(`[IoT] Failed to auto-end session on fault:`, e.message);
+        }
+        return { success: true, active_session_id: null };
+      }
+      
+      return { success: true, active_session_id: activeSession.session_id };
     }
   }
 

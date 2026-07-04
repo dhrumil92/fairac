@@ -220,11 +220,9 @@ const SessionPage = () => {
     clearMessages();
     const startTime = new Date(activeSession.start_time).getTime();
     const elapsedHours = (new Date().getTime() - startTime) / (1000 * 60 * 60);
-    let finalKwh = '0.0100';
+    let finalKwh = '0.0000';
     if (activeSession.total_units && parseFloat(activeSession.total_units) > 0) {
       finalKwh = activeSession.total_units;
-    } else if (!isNaN(elapsedHours) && elapsedHours >= 0) {
-      finalKwh = Math.max(0.01, Math.abs(elapsedHours) * 1.4).toFixed(4);
     }
 
     try {
@@ -304,9 +302,6 @@ const SessionPage = () => {
     let units = 0;
     if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
       units = parseFloat(activeSession.total_units);
-    } else {
-      const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-      units = Math.max(0, hours) * 1.4;
     }
     const cost = units * parseFloat(myRoom?.rate_per_unit || 10);
     return cost.toFixed(2);
@@ -317,8 +312,7 @@ const SessionPage = () => {
     if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
       return parseFloat(activeSession.total_units).toFixed(3);
     }
-    const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    return (Math.max(0, hours) * 1.4).toFixed(3);
+    return '0.000';
   };
 
   const getBookingDetail = () => {

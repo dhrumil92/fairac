@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="800" height="600" fill="#f0f4f8" />
+  
+  <!-- Titles -->
+  <text x="400" y="40" font-family="sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">PZEM-004T Perfect Wiring Diagram</text>
+  
+  <!-- Wall Socket -->
+  <g transform="translate(50, 200)">
+    <rect width="100" height="120" rx="10" fill="#e0e0e0" stroke="#999" stroke-width="3" />
+    <circle cx="50" cy="40" r="12" fill="#333" />
+    <circle cx="50" cy="80" r="12" fill="#333" />
+    <text x="50" y="145" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">Wall Socket</text>
+    <text x="75" y="45" font-family="sans-serif" font-size="14" font-weight="bold" fill="#d32f2f">L</text>
+    <text x="75" y="85" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1976d2">N</text>
+  </g>
+
+  <!-- PZEM Board -->
+  <g transform="translate(300, 300)">
+    <rect width="200" height="100" fill="#2e7d32" stroke="#1b5e20" stroke-width="4" rx="5" />
+    <text x="100" y="55" font-family="sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle">PZEM-004T</text>
+    
+    <!-- Screw Terminals -->
+    <rect x="-10" y="10" width="20" height="15" fill="#4caf50" stroke="#333" />
+    <text x="-25" y="22" font-family="sans-serif" font-size="12" font-weight="bold">CT 1</text>
+    
+    <rect x="-10" y="30" width="20" height="15" fill="#4caf50" stroke="#333" />
+    <text x="-25" y="42" font-family="sans-serif" font-size="12" font-weight="bold">CT 2</text>
+    
+    <rect x="-10" y="55" width="20" height="15" fill="#4caf50" stroke="#333" />
+    <text x="-25" y="67" font-family="sans-serif" font-size="12" font-weight="bold">N</text>
+    
+    <rect x="-10" y="75" width="20" height="15" fill="#4caf50" stroke="#333" />
+    <text x="-25" y="87" font-family="sans-serif" font-size="12" font-weight="bold">L</text>
+  </g>
+
+  <!-- Table Fan -->
+  <g transform="translate(600, 200)">
+    <rect width="120" height="120" rx="60" fill="#cfd8dc" stroke="#90a4ae" stroke-width="4" />
+    <circle cx="60" cy="60" r="20" fill="#b0bec5" />
+    <path d="M 60 40 L 40 10 L 80 10 Z" fill="#78909c" />
+    <path d="M 60 80 L 40 110 L 80 110 Z" fill="#78909c" />
+    <path d="M 40 60 L 10 40 L 10 80 Z" fill="#78909c" />
+    <path d="M 80 60 L 110 40 L 110 80 Z" fill="#78909c" />
+    <text x="60" y="145" font-family="sans-serif" font-size="16" font-weight="bold" text-anchor="middle">Table Fan</text>
+    <text x="40" y="165" font-family="sans-serif" font-size="14" font-weight="bold" fill="#d32f2f">L</text>
+    <text x="80" y="165" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1976d2">N</text>
+  </g>
+
+  <!-- CT Ring -->
+  <g transform="translate(450, 100)">
+    <circle cx="0" cy="0" r="30" fill="none" stroke="#212121" stroke-width="15" />
+    <text x="0" y="-45" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Black CT Ring</text>
+  </g>
+
+  <!-- WIRING (Live - Brown) -->
+  <path d="M 100 240 L 250 240 L 250 382 L 290 382" fill="none" stroke="#8d6e63" stroke-width="5" />
+  <path d="M 250 240 L 640 240 L 640 350" fill="none" stroke="#8d6e63" stroke-width="5" />
+  <text x="180" y="235" font-family="sans-serif" font-size="12" font-weight="bold" fill="#5d4037">Live (Brown)</text>
+
+  <!-- WIRING (Neutral - Blue) -->
+  <path d="M 100 280 L 220 280 L 220 362 L 290 362" fill="none" stroke="#1976d2" stroke-width="5" />
+  <path d="M 220 280 L 410 280 L 410 100 L 490 100 L 490 280 L 680 280 L 680 350" fill="none" stroke="#1976d2" stroke-width="5" />
+  <text x="130" y="275" font-family="sans-serif" font-size="12" font-weight="bold" fill="#0d47a1">Neutral (Blue) - Passes THROUGH Ring</text>
+
+  <!-- WIRING (CT Wires) -->
+  <path d="M 450 115 L 450 180 L 290 180 L 290 317" fill="none" stroke="#424242" stroke-width="2" stroke-dasharray="4" />
+  <path d="M 435 115 L 435 190 L 280 190 L 280 337 L 290 337" fill="none" stroke="#424242" stroke-width="2" stroke-dasharray="4" />
+  <text x="350" y="170" font-family="sans-serif" font-size="12" font-weight="bold" fill="#424242">Thin CT Wires</text>
+
+  <!-- Highlights -->
+  <circle cx="450" cy="100" r="15" fill="none" stroke="#ffeb3b" stroke-width="4" stroke-dasharray="5" />
+</svg>

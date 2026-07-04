@@ -105,6 +105,23 @@ const startSession = async ({
     throw createError(403, 'This hostel is currently inactive. New AC sessions cannot be started.');
   }
 
+  // Compressor Safety Cooldown: Prevent rapid cycling by enforcing a 5-minute cooldown
+  const lastSessionResult = await db.query(
+    `SELECT end_time FROM sessions 
+     WHERE r_id = $1 AND status = 'completed' AND end_time IS NOT NULL
+     ORDER BY end_time DESC LIMIT 1`,
+    [r_id]
+  );
+  if (lastSessionResult.rows.length > 0) {
+    const lastEndTime = new Date(lastSessionResult.rows[0].end_time);
+    const timeDiffMs = new Date() - lastEndTime;
+    const cooldownMs = 5 * 60 * 1000; // 5 minutes
+    if (timeDiffMs < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - timeDiffMs) / 60000);
+      throw createError(403, `Compressor cooling down to prevent damage. Please wait ${remainingMinutes} minute(s) before starting a new session.`);
+    }
+  }
+
   // Validate target_value is provided for non-unlimited sessions
   if (session_type !== 'unlimited' && (target_value === null || target_value <= 0)) {
     throw createError(
@@ -729,14 +746,12 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
     total_units = session.total_units || 0;
   }
 
-  // Fallback: If total_units is falsy or 0, compute simulated kWh based on elapsed time
+  // If no units passed in, rely strictly on what the DB already has recorded from the ESP32.
   if (!total_units || parseFloat(total_units) === 0) {
     if (session.total_units && parseFloat(session.total_units) > 0) {
       total_units = session.total_units;
     } else {
-      const startTime = new Date(session.start_time).getTime();
-      const elapsedHours = (new Date().getTime() - startTime) / (1000 * 60 * 60);
-      total_units = Math.max(0.01, elapsedHours * 1.4).toFixed(4);
+      total_units = 0.0000;
     }
   }
 
