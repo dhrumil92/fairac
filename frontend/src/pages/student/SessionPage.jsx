@@ -519,15 +519,15 @@ const SessionPage = () => {
 
                             <button 
                               type="submit" 
-                              disabled={user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false}
+                              disabled={user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false || deviceStatus?.status === 'offline'}
                               className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                                (user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false) 
+                                (user?.is_active === false || myRoom?.room_active === false || myRoom?.hostel_active === false || deviceStatus?.status === 'offline') 
                                 ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
                                 : 'bg-[#00D4AA] text-[#0F1729] hover:bg-[#00E6B8] hover:shadow-[0_0_20px_rgba(0,212,170,0.4)]'
                               }`}
                             >
                             <span className="material-symbols-outlined">bolt</span>
-                            Start Session Now
+                            {deviceStatus?.status === 'offline' ? 'AC is Offline' : 'Start Session Now'}
                           </button>
                           <p className="text-[11px] text-slate-500 text-center px-4">
                             Current room rate: <span className="text-slate-300 font-semibold">₹{myRoom.rate_per_unit}/unit</span>.

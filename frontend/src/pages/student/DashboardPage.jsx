@@ -35,7 +35,7 @@ const Skeleton = ({ className }) => (
 const DashboardPage = () => {
   const { user, fetchMe, login } = useAuth();
   const navigate = useNavigate();
-  
+
   const [joinCode, setJoinCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
@@ -61,17 +61,18 @@ const DashboardPage = () => {
     }
   };
 
-  const [wallet, setWallet]           = useState(null);
-  const [monthlyStats, setMonthly]    = useState(null);
-  const [activeSession, setActive]    = useState(null);
-  const [recentSessions, setRecent]   = useState([]);
+  const [wallet, setWallet] = useState(null);
+  const [monthlyStats, setMonthly] = useState(null);
+  const [activeSession, setActive] = useState(null);
+  const [recentSessions, setRecent] = useState([]);
   const [totalSessions, setTotalSessions] = useState(0);
-  const [roomInfo, setRoomInfo]       = useState(null);
-  const [pendingInvites, setPending]  = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState('');
+  const [roomInfo, setRoomInfo] = useState(null);
+  const [pendingInvites, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
-  
+  const [deviceStatus, setDeviceStatus] = useState(null);
+
   const [elapsedText, setElapsedText] = useState('00:00:00');
 
   const greeting = () => {
@@ -88,48 +89,64 @@ const DashboardPage = () => {
   // ─── Fetch all dashboard data in parallel ────────────────────────────────
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
-      try {
-        const [walletRes, sessionsRes, activeSessionRes, roomRes, invitesRes] = await Promise.allSettled([
-          api.get('/wallet'),
-          api.get('/sessions/my'),
-          api.get('/sessions/active'),
-          api.get('/rooms/my'),
-          api.get('/rooms/invitations'),
-        ]);
+    try {
+      const [walletRes, sessionsRes, activeSessionRes, roomRes, invitesRes] = await Promise.allSettled([
+        api.get('/wallet'),
+        api.get('/sessions/my'),
+        api.get('/sessions/active'),
+        api.get('/rooms/my'),
+        api.get('/rooms/invitations'),
+      ]);
 
-        if (walletRes.status === 'fulfilled') {
-          const wData = walletRes.value.data.data;
-          setWallet(wData.wallet || wData);
-          setMonthly(wData.this_month || null);
-        }
-        if (sessionsRes.status === 'fulfilled') {
-          const data = sessionsRes.value.data.data;
-          setRecent(data.sessions || data || []);
-          setTotalSessions(data.this_month_count ?? data.pagination?.total ?? data.sessions?.length ?? data?.length ?? 0);
-        }
-        if (activeSessionRes.status === 'fulfilled') {
-          const d = activeSessionRes.value.data.data;
-          setActive(d && d.session !== undefined ? d.session : d);
-        } else if (activeSessionRes.reason?.response?.status === 404) {
-          setActive(null);
-        }
-        if (roomRes.status === 'fulfilled') {
-          setRoomInfo(roomRes.value.data.data.room || roomRes.value.data.data);
-        }
-        if (invitesRes.status === 'fulfilled') {
-          setPending(invitesRes.value.data.data.invitations || []);
-        }
-      } catch (e) {
-        setError('Failed to load some dashboard data.');
-      } finally {
-        setLoading(false);
+      if (walletRes.status === 'fulfilled') {
+        const wData = walletRes.value.data.data;
+        setWallet(wData.wallet || wData);
+        setMonthly(wData.this_month || null);
       }
+      if (sessionsRes.status === 'fulfilled') {
+        const data = sessionsRes.value.data.data;
+        setRecent(data.sessions || data || []);
+        setTotalSessions(data.this_month_count ?? data.pagination?.total ?? data.sessions?.length ?? data?.length ?? 0);
+      }
+      if (activeSessionRes.status === 'fulfilled') {
+        const d = activeSessionRes.value.data.data;
+        setActive(d && d.session !== undefined ? d.session : d);
+      } else if (activeSessionRes.reason?.response?.status === 404) {
+        setActive(null);
+      }
+      if (roomRes.status === 'fulfilled') {
+        setRoomInfo(roomRes.value.data.data.room || roomRes.value.data.data);
+      }
+      if (invitesRes.status === 'fulfilled') {
+        setPending(invitesRes.value.data.data.invitations || []);
+      }
+    } catch (e) {
+      setError('Failed to load some dashboard data.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  // IoT Device Status
+  useEffect(() => {
+    let pollInterval;
+    if (roomInfo && roomInfo.r_id) {
+      const fetchDeviceStatus = async () => {
+        try {
+          const res = await api.get(`/iot/room/${roomInfo.r_id}/status`);
+          setDeviceStatus(res.data?.data);
+        } catch (err) { }
+      };
+      fetchDeviceStatus();
+      pollInterval = setInterval(fetchDeviceStatus, 10000);
+    }
+    return () => clearInterval(pollInterval);
+  }, [roomInfo]);
 
   const handleParticipantAction = async (e, action) => {
     e.stopPropagation();
@@ -191,11 +208,11 @@ const DashboardPage = () => {
       interval = setInterval(() => {
         const now = new Date().getTime();
         const diff = now - startTime;
-        
+
         const h = Math.floor(diff / (1000 * 60 * 60));
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
-        
+
         setElapsedText(
           `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
         );
@@ -241,9 +258,6 @@ const DashboardPage = () => {
     let units = 0;
     if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
       units = parseFloat(activeSession.total_units);
-    } else {
-      const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-      units = Math.max(0, hours) * 1.4;
     }
     const cost = units * parseFloat(roomInfo.rate_per_unit || 10);
     return cost.toFixed(2);
@@ -254,8 +268,7 @@ const DashboardPage = () => {
     if (activeSession.total_units !== undefined && parseFloat(activeSession.total_units) > 0) {
       return parseFloat(activeSession.total_units).toFixed(3);
     }
-    const hours = (new Date().getTime() - new Date(activeSession.start_time).getTime()) / (1000 * 60 * 60);
-    return (Math.max(0, hours) * 1.4).toFixed(3);
+    return '0.000';
   };
 
   const firstName = user?.name?.split(' ')[0] || 'Student';
@@ -271,24 +284,24 @@ const DashboardPage = () => {
             </div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>Join a Hostel</h1>
             <p style={{ color: '#94A3B8', marginBottom: '32px' }}>You are not currently assigned to any hostel. Enter a Secret Hostel Code to join one and start using FairAC.</p>
-            
+
             {joinError && (
               <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', padding: '12px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
                 {joinError}
               </div>
             )}
-            
+
             <form onSubmit={handleJoinHostel} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input 
-                type="text" 
-                placeholder="Enter Secret Hostel Code" 
+              <input
+                type="text"
+                placeholder="Enter Secret Hostel Code"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(108, 99, 255, 0.3)', color: 'white', fontSize: '16px', textAlign: 'center', outline: 'none' }}
                 required
               />
-              <button 
+              <button
                 type="submit"
                 disabled={isJoining || !joinCode}
                 style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#6C63FF', color: 'white', fontWeight: 'bold', border: 'none', cursor: isJoining ? 'not-allowed' : 'pointer', fontSize: '16px', opacity: isJoining ? 0.7 : 1 }}
@@ -329,172 +342,42 @@ const DashboardPage = () => {
 
         <div style={{ padding: '0 40px 40px' }}>
 
-        {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
-        {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
+          {error && <Toast message={error} type="error" duration={10000} onClose={() => setError('')} />}
+          {toastMessage && <Toast message={toastMessage} type="success" duration={10000} onClose={() => setToastMessage(null)} />}
 
-        {user?.is_active === false && (
-          <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', padding: '16px', borderRadius: '12px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(255, 107, 107, 0.2)' }}>
-            <span className="material-symbols-outlined">warning</span>
-            <div>
-              <strong style={{ display: 'block', fontSize: '15px' }}>Account Suspended</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Your account has been suspended by the administrator. You cannot start or join AC sessions.</p>
+          {user?.is_active === false && (
+            <div style={{ backgroundColor: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', padding: '16px', borderRadius: '12px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(255, 107, 107, 0.2)' }}>
+              <span className="material-symbols-outlined">warning</span>
+              <div>
+                <strong style={{ display: 'block', fontSize: '15px' }}>Account Suspended</strong>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Your account has been suspended by the administrator. You cannot start or join AC sessions.</p>
+              </div>
             </div>
-          </div>
-        )}
-        
-        {myParticipant?.status === 'invited' && (
-          <div 
-            onClick={() => navigate('/sessions')}
-            style={{marginBottom: '24px', padding: '16px', background: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '12px', border: '1px solid rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.15)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.1)'}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-              <span className="material-symbols-outlined">bolt</span>
-              <strong>You have been invited to join an active AC session!</strong>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                onClick={(e) => handleParticipantAction(e, 'accept')} 
-                style={{
-                  padding: '10px 32px', 
-                  backgroundColor: 'rgba(0, 212, 170, 0.1)', 
-                  color: '#00D4AA', 
-                  fontSize: '11px', 
-                  fontWeight: 'bold', 
-                  borderRadius: '8px', 
-                  border: '1px solid rgba(0, 212, 170, 0.2)', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
-              >
-                Accept
-              </button>
-              <button 
-                onClick={(e) => handleParticipantAction(e, 'reject')} 
-                style={{
-                  padding: '10px 32px', 
-                  backgroundColor: 'transparent', 
-                  color: '#FF6B6B', 
-                  fontSize: '11px', 
-                  fontWeight: 'bold', 
-                  borderRadius: '8px', 
-                  border: '1px solid rgba(255, 107, 107, 0.2)', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                Reject
-              </button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {pendingInvites.map(invite => (
-          <div 
-            key={invite.invitation_id}
-            onClick={() => navigate('/room')}
-            style={{marginBottom: '24px', padding: '16px', background: 'rgba(251, 146, 60, 0.1)', color: '#FB923C', borderRadius: '12px', border: '1px solid rgba(251, 146, 60, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.15)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)'}
-          >
-            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-              <span className="material-symbols-outlined">notifications_active</span>
-              <strong>{invite.invited_by_name || 'Someone'} invited you to join {invite.room_name || `Room ${invite.room_no}`}!</strong>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button 
-                onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'accept')} 
-                style={{
-                  padding: '10px 32px', 
-                  backgroundColor: 'rgba(0, 212, 170, 0.1)', 
-                  color: '#00D4AA', 
-                  fontSize: '11px', 
-                  fontWeight: 'bold', 
-                  borderRadius: '8px', 
-                  border: '1px solid rgba(0, 212, 170, 0.2)', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
-              >
-                Accept
-              </button>
-              <button 
-                onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'reject')} 
-                style={{
-                  padding: '10px 32px', 
-                  backgroundColor: 'transparent', 
-                  color: '#FF6B6B', 
-                  fontSize: '11px', 
-                  fontWeight: 'bold', 
-                  borderRadius: '8px', 
-                  border: '1px solid rgba(255, 107, 107, 0.2)', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                Reject
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {/* ── Deactivated Banners ── */}
-        {roomInfo && roomInfo.hostel_active === false && (
-          <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span className="material-symbols-outlined">gpp_bad</span>
-            <strong>This hostel is currently deactivated. AC sessions cannot be started.</strong>
-          </div>
-        )}
-        {roomInfo && roomInfo.hostel_active !== false && roomInfo.room_active === false && (
-          <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span className="material-symbols-outlined">block</span>
-            <strong>Your room is currently deactivated. AC sessions cannot be started.</strong>
-          </div>
-        )}
-
-        {/* ── Pending Leave Requests Banner ── */}
-        {activeSession && activeSession.status === 'active' && myParticipant?.status === 'accepted' &&
-          activeSession.participants.filter(p => p.leave_status === 'pending' && Number(p.u_id) !== Number(user.u_id)).map(leaver => (
-            <div 
-              key={leaver.u_id} 
+          {myParticipant?.status === 'invited' && (
+            <div
               onClick={() => navigate('/sessions')}
-              style={{marginBottom: '24px', padding: '16px', background: 'rgba(255, 171, 0, 0.1)', color: '#FFAB00', borderRadius: '12px', border: '1px solid rgba(255, 171, 0, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s'}}
-              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.15)'}
-              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.1)'}
+              style={{ marginBottom: '24px', padding: '16px', background: 'rgba(108, 99, 255, 0.1)', color: '#6C63FF', borderRadius: '12px', border: '1px solid rgba(108, 99, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.15)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(108, 99, 255, 0.1)'}
             >
-              <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                <span className="material-symbols-outlined">directions_run</span>
-                <strong>{leaver.name} wants to leave the active AC session early.</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined">bolt</span>
+                <strong>You have been invited to join an active AC session!</strong>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  onClick={(e) => handleLeaveAction(e, leaver.u_id, 'approve')} 
+                <button
+                  onClick={(e) => handleParticipantAction(e, 'accept')}
                   style={{
-                    padding: '10px 32px', 
-                    backgroundColor: 'rgba(0, 212, 170, 0.1)', 
-                    color: '#00D4AA', 
-                    fontSize: '11px', 
-                    fontWeight: 'bold', 
-                    borderRadius: '8px', 
-                    border: '1px solid rgba(0, 212, 170, 0.2)', 
-                    textTransform: 'uppercase', 
+                    padding: '10px 32px',
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                    color: '#00D4AA',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 212, 170, 0.2)',
+                    textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     cursor: 'pointer',
                     transition: 'background-color 0.2s'
@@ -504,17 +387,17 @@ const DashboardPage = () => {
                 >
                   Accept
                 </button>
-                <button 
-                  onClick={(e) => handleLeaveAction(e, leaver.u_id, 'reject')} 
+                <button
+                  onClick={(e) => handleParticipantAction(e, 'reject')}
                   style={{
-                    padding: '10px 32px', 
-                    backgroundColor: 'transparent', 
-                    color: '#FF6B6B', 
-                    fontSize: '11px', 
-                    fontWeight: 'bold', 
-                    borderRadius: '8px', 
-                    border: '1px solid rgba(255, 107, 107, 0.2)', 
-                    textTransform: 'uppercase', 
+                    padding: '10px 32px',
+                    backgroundColor: 'transparent',
+                    color: '#FF6B6B',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 107, 107, 0.2)',
+                    textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     cursor: 'pointer',
                     transition: 'background-color 0.2s'
@@ -526,263 +409,393 @@ const DashboardPage = () => {
                 </button>
               </div>
             </div>
-          ))
-        }
-
-        {/* ── Stats Row ── */}
-        <div className="stats-grid">
-          {loading ? (
-            <>
-              <Skeleton className="stat-card-skeleton" />
-              <Skeleton className="stat-card-skeleton" />
-              <Skeleton className="stat-card-skeleton" />
-              <Skeleton className="stat-card-skeleton" />
-            </>
-          ) : (
-            <>
-              <StatCard
-                icon="payments"
-                iconColor="#00D4AA"
-                iconBg="rgba(0,212,170,0.15)"
-                label="Wallet Balance"
-                value={wallet ? `₹${parseFloat(wallet.balance).toFixed(2)}` : '₹0.00'}
-                badge={wallet ? `₹${parseFloat(wallet.total_recharged || 0).toFixed(0)} total` : 'No wallet'}
-                badgeColor="#00D4AA"
-                onClick={() => navigate('/wallet')}
-              />
-              <StatCard
-                icon="receipt_long"
-                iconColor="#6C63FF"
-                iconBg="rgba(108,99,255,0.15)"
-                label="This Month Spent"
-                value={monthlyStats ? `₹${parseFloat(monthlyStats.cost || 0).toFixed(2)}` : '₹0.00'}
-                badge="AC billing"
-                badgeColor="#6C63FF"
-                onClick={() => {
-                  navigate('/wallet#ledger');
-                  setTimeout(() => {
-                    const el = document.getElementById('ledger');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }, 100);
-                }}
-              />
-              <StatCard
-                icon="lan"
-                iconColor="#60A5FA"
-                iconBg="rgba(96,165,250,0.15)"
-                label="Sessions This Month"
-                value={totalSessions || '0'}
-                badge="Usage sessions"
-                badgeColor="#60A5FA"
-                onClick={() => navigate('/sessions#history')}
-              />
-              <StatCard
-                icon="home_work"
-                iconColor="#FB923C"
-                iconBg="rgba(251,146,60,0.15)"
-                label="Room"
-                value={roomInfo ? roomInfo.room_number || roomInfo.room_name || `Room ${roomInfo.room_no}` || 'Room —' : 'Not Assigned'}
-                badge={user?.hostel_name || roomInfo?.hostel_name || 'Hostel'}
-                badgeColor="#FB923C"
-                onClick={() => navigate('/room')}
-              />
-            </>
           )}
-        </div>
 
-        {/* ── Middle: Active Session + Quick Recharge ── */}
-        <div className="middle-grid">
-          {/* Active Session */}
-          <div className={`active-session-card glass-card ${activeSession ? 'active' : 'no-session'}`}>
-            {activeSession ? (
-              <>
-                <div className="session-status-badge">
-                  <div className="pulse-dot" />
-                  <span>Session Active</span>
+          {pendingInvites.map(invite => (
+            <div
+              key={invite.invitation_id}
+              onClick={() => navigate('/room')}
+              style={{ marginBottom: '24px', padding: '16px', background: 'rgba(251, 146, 60, 0.1)', color: '#FB923C', borderRadius: '12px', border: '1px solid rgba(251, 146, 60, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.15)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined">notifications_active</span>
+                <strong>{invite.invited_by_name || 'Someone'} invited you to join {invite.room_name || `Room ${invite.room_no}`}!</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'accept')}
+                  style={{
+                    padding: '10px 32px',
+                    backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                    color: '#00D4AA',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 212, 170, 0.2)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={(e) => handleRoomInviteAction(e, invite.invitation_id, 'reject')}
+                  style={{
+                    padding: '10px 32px',
+                    backgroundColor: 'transparent',
+                    color: '#FF6B6B',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 107, 107, 0.2)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* ── Deactivated Banners ── */}
+          {roomInfo && roomInfo.hostel_active === false && (
+            <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined">gpp_bad</span>
+              <strong>This hostel is currently deactivated. AC sessions cannot be started.</strong>
+            </div>
+          )}
+          {roomInfo && roomInfo.hostel_active !== false && roomInfo.room_active === false && (
+            <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 107, 107, 0.1)', color: '#FF6B6B', borderRadius: '12px', border: '1px solid rgba(255, 107, 107, 0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined">block</span>
+              <strong>Your room is currently deactivated. AC sessions cannot be started.</strong>
+            </div>
+          )}
+
+          {/* ── Pending Leave Requests Banner ── */}
+          {activeSession && activeSession.status === 'active' && myParticipant?.status === 'accepted' &&
+            activeSession.participants.filter(p => p.leave_status === 'pending' && Number(p.u_id) !== Number(user.u_id)).map(leaver => (
+              <div
+                key={leaver.u_id}
+                onClick={() => navigate('/sessions')}
+                style={{ marginBottom: '24px', padding: '16px', background: 'rgba(255, 171, 0, 0.1)', color: '#FFAB00', borderRadius: '12px', border: '1px solid rgba(255, 171, 0, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.15)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 171, 0, 0.1)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined">directions_run</span>
+                  <strong>{leaver.name} wants to leave the active AC session early.</strong>
                 </div>
-                <h2 className="section-heading">Current AC Session</h2>
-                <div className="session-details">
-                  <div className="session-detail-row">
-                    <div className="detail-icon"><span className="material-symbols-outlined">schedule</span></div>
-                    <div>
-                      <p className="detail-label">Elapsed Time</p>
-                      <p className="detail-value text-xl font-bold font-mono tracking-widest">{elapsedText}</p>
-                    </div>
-                  </div>
-                  <div className="session-detail-row">
-                    <div className="detail-icon"><span className="material-symbols-outlined">group</span></div>
-                    <div>
-                      <p className="detail-label">My Status</p>
-                      <p className="detail-value font-bold" style={{ color: myParticipant?.status === 'accepted' ? '#00D4AA' : '#FF6B6B' }}>
-                        {myParticipant?.status === 'accepted' ? 'In Session' : myParticipant?.status === 'invited' ? 'Invited' : 'Not in session'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="session-detail-row">
-                    <div className="detail-icon"><span className="material-symbols-outlined">electric_meter</span></div>
-                    <div>
-                      <p className="detail-label">Consumption</p>
-                      <p className="detail-value text-xl font-bold font-mono tracking-widest">{powerConsumption()} kWh</p>
-                    </div>
-                  </div>
-                  <div className="session-detail-row">
-                    <div className="detail-icon"><span className="material-symbols-outlined">currency_rupee</span></div>
-                    <div>
-                      <p className="detail-label">Estimated Cost</p>
-                      <p className="detail-value text-xl font-bold" style={{ color: '#00D4AA' }}>~₹{estimatedCost()}</p>
-                    </div>
-                  </div>
-                </div>
-                <Link to="/sessions" className="btn-gradient" id="view-session-btn">
-                  Manage Session
-                </Link>
-              </>
-            ) : (
-              <div className="no-session-content">
-                <div className="no-session-icon">
-                  <span className="material-symbols-outlined">air</span>
-                </div>
-                <h3>No Active Session</h3>
-                <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
-                <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  {(() => {
-                    const isStartDisabled = user?.is_active === false || roomInfo?.room_active === false || roomInfo?.hostel_active === false;
-                    return (
-                      <>
-                        <button 
-                          onClick={handleQuickStartSession} 
-                          disabled={isStartDisabled}
-                          style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: isStartDisabled ? '#334155' : '#00D4AA', color: isStartDisabled ? '#94A3B8' : '#0F1729', fontWeight: 'bold', cursor: isStartDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }} 
-                          onMouseOver={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '0.9'; }} 
-                          onMouseOut={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '1'; }}
-                        >
-                          <span className="material-symbols-outlined">play_arrow</span>
-                          Quick Start (1.5 hr)
-                        </button>
-                        {isStartDisabled ? (
-                          <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
-                            <span className="material-symbols-outlined">tune</span>
-                            Advanced Options
-                          </div>
-                        ) : (
-                          <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className="material-symbols-outlined">tune</span>
-                            Advanced Options
-                          </Link>
-                        )}
-                      </>
-                    );
-                  })()}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    onClick={(e) => handleLeaveAction(e, leaver.u_id, 'approve')}
+                    style={{
+                      padding: '10px 32px',
+                      backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                      color: '#00D4AA',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0, 212, 170, 0.2)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.2)'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 170, 0.1)'}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={(e) => handleLeaveAction(e, leaver.u_id, 'reject')}
+                    style={{
+                      padding: '10px 32px',
+                      backgroundColor: 'transparent',
+                      color: '#FF6B6B',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 107, 107, 0.2)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 107, 107, 0.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    Reject
+                  </button>
                 </div>
               </div>
+            ))
+          }
+
+          {/* ── Stats Row ── */}
+          <div className="stats-grid">
+            {loading ? (
+              <>
+                <Skeleton className="stat-card-skeleton" />
+                <Skeleton className="stat-card-skeleton" />
+                <Skeleton className="stat-card-skeleton" />
+                <Skeleton className="stat-card-skeleton" />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  icon="payments"
+                  iconColor="#00D4AA"
+                  iconBg="rgba(0,212,170,0.15)"
+                  label="Wallet Balance"
+                  value={wallet ? `₹${parseFloat(wallet.balance).toFixed(2)}` : '₹0.00'}
+                  badge={wallet ? `₹${parseFloat(wallet.total_recharged || 0).toFixed(0)} total` : 'No wallet'}
+                  badgeColor="#00D4AA"
+                  onClick={() => navigate('/wallet')}
+                />
+                <StatCard
+                  icon="receipt_long"
+                  iconColor="#6C63FF"
+                  iconBg="rgba(108,99,255,0.15)"
+                  label="This Month Spent"
+                  value={monthlyStats ? `₹${parseFloat(monthlyStats.cost || 0).toFixed(2)}` : '₹0.00'}
+                  badge="AC billing"
+                  badgeColor="#6C63FF"
+                  onClick={() => {
+                    navigate('/wallet#ledger');
+                    setTimeout(() => {
+                      const el = document.getElementById('ledger');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                />
+                <StatCard
+                  icon="lan"
+                  iconColor="#60A5FA"
+                  iconBg="rgba(96,165,250,0.15)"
+                  label="Sessions This Month"
+                  value={totalSessions || '0'}
+                  badge="Usage sessions"
+                  badgeColor="#60A5FA"
+                  onClick={() => navigate('/sessions#history')}
+                />
+                <StatCard
+                  icon="home_work"
+                  iconColor="#FB923C"
+                  iconBg="rgba(251,146,60,0.15)"
+                  label="Room"
+                  value={roomInfo ? roomInfo.room_number || roomInfo.room_name || `Room ${roomInfo.room_no}` || 'Room —' : 'Not Assigned'}
+                  badge={user?.hostel_name || roomInfo?.hostel_name || 'Hostel'}
+                  badgeColor="#FB923C"
+                  onClick={() => navigate('/room')}
+                />
+              </>
             )}
           </div>
 
-          {/* Quick Recharge Card */}
-          <div className="quick-recharge-card glass-card">
-            <div className="quick-recharge-glow" />
-            <h3 className="section-heading">Quick Recharge</h3>
-            <div className="recharge-amounts">
-              {[100, 250, 500, 1000].map(amount => (
-                <button key={amount} className="recharge-amount-btn" id={`recharge-${amount}-btn`}>
-                  <span>₹{amount}</span>
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </button>
-              ))}
+          {/* ── Middle: Active Session + Quick Recharge ── */}
+          <div className="middle-grid">
+            {/* Active Session */}
+            <div className={`active-session-card glass-card ${activeSession ? 'active' : 'no-session'}`}>
+              {activeSession ? (
+                <>
+                  <div className="session-status-badge">
+                    <div className="pulse-dot" />
+                    <span>Session Active</span>
+                  </div>
+                  <h2 className="section-heading">Current AC Session</h2>
+                  <div className="session-details">
+                    <div className="session-detail-row">
+                      <div className="detail-icon"><span className="material-symbols-outlined">schedule</span></div>
+                      <div>
+                        <p className="detail-label">Elapsed Time</p>
+                        <p className="detail-value text-xl font-bold font-mono tracking-widest">{elapsedText}</p>
+                      </div>
+                    </div>
+                    <div className="session-detail-row">
+                      <div className="detail-icon"><span className="material-symbols-outlined">group</span></div>
+                      <div>
+                        <p className="detail-label">My Status</p>
+                        <p className="detail-value font-bold" style={{ color: myParticipant?.status === 'accepted' ? '#00D4AA' : '#FF6B6B' }}>
+                          {myParticipant?.status === 'accepted' ? 'In Session' : myParticipant?.status === 'invited' ? 'Invited' : 'Not in session'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="session-detail-row">
+                      <div className="detail-icon"><span className="material-symbols-outlined">electric_meter</span></div>
+                      <div>
+                        <p className="detail-label">Consumption</p>
+                        <p className="detail-value text-xl font-bold font-mono tracking-widest">{powerConsumption()} kWh</p>
+                      </div>
+                    </div>
+                    <div className="session-detail-row">
+                      <div className="detail-icon"><span className="material-symbols-outlined">currency_rupee</span></div>
+                      <div>
+                        <p className="detail-label">Estimated Cost</p>
+                        <p className="detail-value text-xl font-bold" style={{ color: '#00D4AA' }}>~₹{estimatedCost()}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <Link to="/sessions" className="btn-gradient" id="view-session-btn">
+                    Manage Session
+                  </Link>
+                </>
+              ) : (
+                <div className="no-session-content">
+                  <div className="no-session-icon">
+                    <span className="material-symbols-outlined">air</span>
+                  </div>
+                  <h3>No Active Session</h3>
+                  <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {(() => {
+                      const isStartDisabled = user?.is_active === false || roomInfo?.room_active === false || roomInfo?.hostel_active === false || deviceStatus?.status === 'offline';
+                      return (
+                        <>
+                          <button
+                            onClick={handleQuickStartSession}
+                            disabled={isStartDisabled}
+                            style={{ padding: '12px 24px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: isStartDisabled ? '#334155' : '#00D4AA', color: isStartDisabled ? '#94A3B8' : '#0F1729', fontWeight: 'bold', cursor: isStartDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+                            onMouseOver={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '0.9'; }}
+                            onMouseOut={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '1'; }}
+                          >
+                            <span className="material-symbols-outlined">play_arrow</span>
+                            {deviceStatus?.status === 'offline' ? 'AC is Offline' : 'Quick Start (1.5 hr)'}
+                          </button>
+                          {isStartDisabled ? (
+                            <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
+                              <span className="material-symbols-outlined">tune</span>
+                              Advanced Options
+                            </div>
+                          ) : (
+                            <Link to="/sessions" className="btn-gradient" id="start-session-btn" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="material-symbols-outlined">tune</span>
+                              Advanced Options
+                            </Link>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </div>
-            <Link to="/wallet" className="recharge-custom-link">Custom Amount →</Link>
-          </div>
-        </div>
 
-        {/* ── Recent Sessions Table ── */}
-        <section className="table-section glass-card">
-          <div className="table-header">
-            <h2 className="section-heading">Recent Sessions</h2>
-            <Link to="/sessions#history" className="table-see-all" id="see-all-sessions-link">
-              See All History
-              <span className="material-symbols-outlined">open_in_new</span>
-            </Link>
+            {/* Quick Recharge Card */}
+            <div className="quick-recharge-card glass-card">
+              <div className="quick-recharge-glow" />
+              <h3 className="section-heading">Quick Recharge</h3>
+              <div className="recharge-amounts">
+                {[100, 250, 500, 1000].map(amount => (
+                  <button key={amount} className="recharge-amount-btn" id={`recharge-${amount}-btn`}>
+                    <span>₹{amount}</span>
+                    <span className="material-symbols-outlined">chevron_right</span>
+                  </button>
+                ))}
+              </div>
+              <Link to="/wallet" className="recharge-custom-link">Custom Amount →</Link>
+            </div>
           </div>
 
-          {loading ? (
-            <div className="table-loading">
-              {[1,2,3].map(i => <Skeleton key={i} className="table-row-skeleton" />)}
+          {/* ── Recent Sessions Table ── */}
+          <section className="table-section glass-card">
+            <div className="table-header">
+              <h2 className="section-heading">Recent Sessions</h2>
+              <Link to="/sessions#history" className="table-see-all" id="see-all-sessions-link">
+                See All History
+                <span className="material-symbols-outlined">open_in_new</span>
+              </Link>
             </div>
-          ) : recentSessions.length === 0 ? (
-            <div className="table-empty">
-              <span className="material-symbols-outlined">history</span>
-              <p>No sessions yet. Start your first AC session!</p>
-            </div>
-          ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Session ID</th>
-                    <th>Booking Type</th>
-                    <th>Date</th>
-                    <th>Duration</th>
-                    <th>Participants</th>
-                    <th>Energy</th>
-                    <th>Your Share</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSessions.slice(0, 4).map((session) => {
-                    const dur = session.duration_minutes
-                      ? `${Math.floor(session.duration_minutes / 60)}h ${Math.floor(session.duration_minutes % 60)}m`
-                      : '—';
-                    const isActive = session.status === 'active';
-                    return (
-                      <tr key={session.session_id} className={isActive ? 'row-active' : ''}>
-                        <td className="cell-id">
-                          <span className="text-slate-400">
-                            #{String(session.session_id).padStart(5, '0')}
-                          </span>
-                        </td>
-                        <td className="cell-white" style={{textTransform: 'capitalize'}}>
-                          {session.session_type.replace('_', ' ')}
-                        </td>
-                        <td className="cell-muted">
-                          {new Date(session.start_time).toLocaleDateString('en-IN', {
-                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="cell-muted">{dur}</td>
-                        <td>
-                          <div className="avatar-stack">
-                            {(session.participants || []).slice(0, 3).map((p, i) => (
-                              <div key={i} className="avatar-mini">
-                                {p.name?.[0]?.toUpperCase() || '?'}
-                              </div>
-                            ))}
-                            {(session.participants?.length || 0) > 3 && (
-                              <div className="avatar-mini avatar-more">
-                                +{(session.participants.length - 3)}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="cell-white">
-                          {session.total_units != null ? `${parseFloat(session.total_units).toFixed(3)} kWh` : '—'}
-                        </td>
-                        <td className={isActive ? 'cell-success' : 'cell-white'}>
-                          {session.my_cost != null ? `₹${parseFloat(session.my_cost).toFixed(2)}` : '—'}
-                        </td>
-                        <td>
-                          <span className={`status-badge ${session.status}`}>
-                            {session.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+
+            {loading ? (
+              <div className="table-loading">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="table-row-skeleton" />)}
+              </div>
+            ) : recentSessions.length === 0 ? (
+              <div className="table-empty">
+                <span className="material-symbols-outlined">history</span>
+                <p>No sessions yet. Start your first AC session!</p>
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Session ID</th>
+                      <th>Booking Type</th>
+                      <th>Date</th>
+                      <th>Duration</th>
+                      <th>Participants</th>
+                      <th>Energy</th>
+                      <th>Your Share</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSessions.slice(0, 4).map((session) => {
+                      const dur = session.duration_minutes
+                        ? `${Math.floor(session.duration_minutes / 60)}h ${Math.floor(session.duration_minutes % 60)}m`
+                        : '—';
+                      const isActive = session.status === 'active';
+                      return (
+                        <tr key={session.session_id} className={isActive ? 'row-active' : ''}>
+                          <td className="cell-id">
+                            <span className="text-slate-400">
+                              #{String(session.session_id).padStart(5, '0')}
+                            </span>
+                          </td>
+                          <td className="cell-white" style={{ textTransform: 'capitalize' }}>
+                            {session.session_type.replace('_', ' ')}
+                          </td>
+                          <td className="cell-muted">
+                            {new Date(session.start_time).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="cell-muted">{dur}</td>
+                          <td>
+                            <div className="avatar-stack">
+                              {(session.participants || []).slice(0, 3).map((p, i) => (
+                                <div key={i} className="avatar-mini">
+                                  {p.name?.[0]?.toUpperCase() || '?'}
+                                </div>
+                              ))}
+                              {(session.participants?.length || 0) > 3 && (
+                                <div className="avatar-mini avatar-more">
+                                  +{(session.participants.length - 3)}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="cell-white">
+                            {session.total_units != null ? `${parseFloat(session.total_units).toFixed(3)} kWh` : '—'}
+                          </td>
+                          <td className={isActive ? 'cell-success' : 'cell-white'}>
+                            {session.my_cost != null ? `₹${parseFloat(session.my_cost).toFixed(2)}` : '—'}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${session.status}`}>
+                              {session.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>

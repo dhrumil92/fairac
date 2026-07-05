@@ -105,22 +105,24 @@ const startSession = async ({
     throw createError(403, 'This hostel is currently inactive. New AC sessions cannot be started.');
   }
 
+  // --- TEMP DISABLED FOR TESTING ---
   // Compressor Safety Cooldown: Prevent rapid cycling by enforcing a 5-minute cooldown
-  const lastSessionResult = await db.query(
-    `SELECT end_time FROM sessions 
-     WHERE r_id = $1 AND status = 'completed' AND end_time IS NOT NULL
-     ORDER BY end_time DESC LIMIT 1`,
-    [r_id]
-  );
-  if (lastSessionResult.rows.length > 0) {
-    const lastEndTime = new Date(lastSessionResult.rows[0].end_time);
-    const timeDiffMs = new Date() - lastEndTime;
-    const cooldownMs = 5 * 60 * 1000; // 5 minutes
-    if (timeDiffMs < cooldownMs) {
-      const remainingMinutes = Math.ceil((cooldownMs - timeDiffMs) / 60000);
-      throw createError(403, `Compressor cooling down to prevent damage. Please wait ${remainingMinutes} minute(s) before starting a new session.`);
-    }
-  }
+  // const lastSessionResult = await db.query(
+  //   `SELECT end_time FROM sessions 
+  //    WHERE r_id = $1 AND status = 'completed' AND end_time IS NOT NULL
+  //    ORDER BY end_time DESC LIMIT 1`,
+  //   [r_id]
+  // );
+  // if (lastSessionResult.rows.length > 0) {
+  //   const lastEndTime = new Date(lastSessionResult.rows[0].end_time);
+  //   const timeDiffMs = new Date() - lastEndTime;
+  //   const cooldownMs = 5 * 60 * 1000; // 5 minutes
+  //   if (timeDiffMs < cooldownMs) {
+  //     const remainingMinutes = Math.ceil((cooldownMs - timeDiffMs) / 60000);
+  //     throw createError(403, `Compressor cooling down to prevent damage. Please wait ${remainingMinutes} minute(s) before starting a new session.`);
+  //   }
+  // }
+  // ---------------------------------
 
   // Validate target_value is provided for non-unlimited sessions
   if (session_type !== 'unlimited' && (target_value === null || target_value <= 0)) {
@@ -781,8 +783,25 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
 
   const participants = participantsResult.rows;
   const endTime = new Date();
+  const sessionStartTime = new Date(session.start_time);
+  const sessionDurationMs = endTime.getTime() - sessionStartTime.getTime();
   const rate = parseFloat(session.rate_per_unit);
-  const totalCost = parseFloat(total_units) * rate;
+  
+  let finalTotalUnits = parseFloat(total_units);
+  let totalCost = finalTotalUnits * rate;
+
+  // ── SPAM PREVENTION & GRACE PERIOD ───────────────────────────────────────
+  if (sessionDurationMs <= 60000) {
+    // Under 60 seconds: Grace Period (Full refund for mistakes/hardware faults)
+    totalCost = 0;
+    finalTotalUnits = 0;
+  } else {
+    // Over 60 seconds: Enforce minimum connection fee of ₹0.10
+    if (rate > 0 && totalCost < 0.10) {
+      totalCost = 0.10;
+      finalTotalUnits = 0.10 / rate;
+    }
+  }
 
   // ── Grace Period Configurations ─────────────────────────────────────────
   const JOIN_GRACE_MINUTES = 5;
@@ -792,7 +811,6 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
 
   // ── Billing Calculation ─────────────────────────────────────────────────
   // Step 1: Calculate each person's time in seconds
-  const sessionStartTime = new Date(session.start_time);
   
   const billingData = participants.map((p) => {
     const joinTime = new Date(p.joined_at);
@@ -841,11 +859,11 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
       if (isLast) {
         // Give last participant the remainder to avoid rounding gaps
         costShare  = Math.round((totalCost  - totalCostAssigned)  * 100) / 100;
-        unitsShare = Math.round((parseFloat(total_units) - totalUnitsAssigned) * 1000) / 1000;
+        unitsShare = Math.round((finalTotalUnits - totalUnitsAssigned) * 1000) / 1000;
       } else {
         const ratio = p.seconds / totalSeconds;
         costShare  = Math.round(totalCost              * ratio * 100)  / 100;
-        unitsShare = Math.round(parseFloat(total_units) * ratio * 1000) / 1000;
+        unitsShare = Math.round(finalTotalUnits * ratio * 1000) / 1000;
         totalCostAssigned  += costShare;
         totalUnitsAssigned += unitsShare;
       }
@@ -864,7 +882,13 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
       `UPDATE sessions
        SET status = 'completed', end_time = $1, total_units = $2
        WHERE session_id = $3`,
-      [endTime, total_units, session_id]
+      [endTime, finalTotalUnits, session_id]
+    );
+
+    // 1.5 Reset the live power on the device to 0W so the UI immediately reflects it
+    await client.query(
+      `UPDATE devices SET current_power_w = 0 WHERE r_id = $1`,
+      [session.r_id]
     );
 
     // 2. For each billed participant:

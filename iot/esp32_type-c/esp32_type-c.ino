@@ -63,6 +63,9 @@ unsigned long lastDisplayTime = 0;
 unsigned long lastWifiRetryTime = 0;
 unsigned long wifiDisconnectTime = 0;
 unsigned long faultStartTime = 0;
+unsigned long sessionStartTime = 0;
+unsigned long lastSaveTime = 0;
+unsigned long lastSuccessfulServerPing = 0;
 bool wifiWasConnected = false;
 int displayScreen = 0;
 String faultMessage = "";
@@ -95,7 +98,7 @@ void setup() {
   pinMode(0, INPUT_PULLUP); // BOOT button for WiFi Reset
 
   // Relay OFF by default
-  digitalWrite(PIN_RELAY, LOW);
+  digitalWrite(PIN_RELAY, HIGH);
 
   // Initialize I2C for LCD on pins 14 (SDA) and 27 (SCL)
   Wire.begin(14, 27);
@@ -153,24 +156,28 @@ void loop() {
 
   // --- E-Stop Button Logic (GPIO 39) ---
   if (digitalRead(PIN_BTN_ESTOP) == LOW) { // Assuming active LOW with pullup
-    if (currentState == SESSION_ACTIVE) {
-      // 1. Instant Press: Trigger Emergency Stop
-      stopSession();
-      currentState = FAULT;
-      faultStartTime = now;
-      faultMessage = "EMERGENCY STOP";
-      digitalWrite(PIN_LED_RED, HIGH);
-      Serial.println("[FAULT] E-Stop Pressed!");
-      delay(1000); // debounce
-    } 
-    else if (currentState == FAULT) {
-      // 2. Long Press (3 seconds): Recover from Emergency Stop
-      delay(3000);
-      if (digitalRead(PIN_BTN_ESTOP) == LOW) {
-        Serial.println("\n[SYSTEM] Fault Cleared via E-Stop Long Press.");
-        currentState = STANDBY;
-        faultMessage = "";
-        digitalWrite(PIN_LED_RED, LOW);
+    delay(50); // SOFTWARE DEBOUNCE: Wait 50ms to verify it's a real button press, not an EMI spark!
+    if (digitalRead(PIN_BTN_ESTOP) == LOW) {
+      if (currentState == SESSION_ACTIVE) {
+        // 1. Instant Press: Trigger Emergency Stop
+        stopSession();
+        currentState = FAULT;
+        faultStartTime = now;
+        faultMessage = "EMERGENCY STOP";
+        digitalWrite(PIN_LED_RED, HIGH);
+        Serial.println("[FAULT] E-Stop Pressed!");
+        lastHeartbeatTime = 0; // Force immediate heartbeat to tell backend!
+        delay(1000); // debounce
+      } 
+      else if (currentState == FAULT) {
+        // 2. Long Press (3 seconds): Recover from Emergency Stop
+        delay(3000);
+        if (digitalRead(PIN_BTN_ESTOP) == LOW) {
+          Serial.println("\n[SYSTEM] Fault Cleared via E-Stop Long Press.");
+          currentState = STANDBY;
+          faultMessage = "";
+          digitalWrite(PIN_LED_RED, LOW);
+        }
       }
     }
   }
@@ -216,8 +223,16 @@ void loop() {
     }
   }
 
-  // --- Heartbeat Logic (Every 30 seconds) ---
-  if (now - lastHeartbeatTime >= 30000) {
+  // --- Server Timeout & Safety Logic ---
+  if (currentState == SESSION_ACTIVE && (now - lastSuccessfulServerPing > 5 * 60 * 1000)) { 
+    Serial.println("[SERVER] Unreachable > 5 mins. Auto-stopping session for Anti-Theft!");
+    stopSession();
+    currentState = FAULT;
+    faultMessage = "FAULT: Server Down";
+  }
+
+  // --- Handle Heartbeat ---
+  if (now - lastHeartbeatTime > 30000) {
     lastHeartbeatTime = now;
     sendHeartbeat();
   }
@@ -315,6 +330,8 @@ void connectWiFi() {
 
 void startSession(bool silent) {
   currentState = SESSION_ACTIVE;
+  sessionStartTime = millis();
+  current_power = 0.0;
   preferences.putBool("is_active", true);
   preferences.putLong("session_id", activeSessionId);
   
@@ -331,22 +348,21 @@ void startSession(bool silent) {
   }
   
   digitalWrite(PIN_LED_YELLOW, HIGH);
-  digitalWrite(PIN_RELAY, HIGH); // Turn AC ON
+  digitalWrite(PIN_RELAY, LOW); // Turn AC ON
   Serial.println("[SYSTEM] Session Started. Relay ON.");
 }
 
 void stopSession() {
   currentState = STANDBY;
+  current_power = 0.0;
   preferences.putBool("is_active", false);
   
-  digitalWrite(PIN_RELAY, LOW); // Turn AC OFF
+  digitalWrite(PIN_RELAY, HIGH); // Turn AC OFF
   digitalWrite(PIN_LED_YELLOW, LOW);
   beep(200, 3, 200);
   
-  Serial.println("[SYSTEM] Session Ended. Relay OFF.");
-  
-  // Reset session kWh after saving
   saveToFlash();
+  Serial.println("[SYSTEM] Session Ended. Relay OFF.");
 }
 
 void saveToFlash() {
@@ -366,10 +382,25 @@ void handleTelemetry() {
     current_voltage = v;
     current_power = pzem.power();
     
-    // Safety check for NaN on power/pf readings
-    if (isnan(current_power)) current_power = 0.0;
+    // -------------------------------------------------------------
+    // SOFTWARE EMI FILTER (Fix for Contactor Spikes)
+    // -------------------------------------------------------------
+    // When the heavy contactor snaps on/off, it creates a massive 
+    // electromagnetic spike (Back EMF) that can corrupt the RX/TX data.
+    // 1. Sanity Clamp: If we read something impossible (> 10,000 Watts), we discard it!
+    if (isnan(current_power) || current_power < 0.0 || current_power > 10000.0) {
+      Serial.println("[WARNING] Impossible power reading! Discarding EMI glitch.");
+      current_power = 0.0;
+    }
+    
+    // 2. Startup Blanking: Ignore the first 5 seconds after starting a session
+    if (currentState == SESSION_ACTIVE && (millis() - sessionStartTime < 5000)) {
+      current_power = 0.0;
+    }
+    
     current_pf = pzem.pf();
-    if (isnan(current_pf)) current_pf = 0.0;
+    if (isnan(current_pf) || current_pf < 0.0 || current_pf > 1.0) current_pf = 0.0;
+
     
     float consumed_kwh = (current_power / 1000.0) * (10.0 / 3600.0);
     if (currentState == SESSION_ACTIVE) {
@@ -378,7 +409,10 @@ void handleTelemetry() {
     }
     total_kwh += consumed_kwh;
     
-    saveToFlash();
+    if (currentState == SESSION_ACTIVE && (millis() - lastSaveTime > 60000)) {
+      saveToFlash();
+      lastSaveTime = millis();
+    }
   }
   
   Serial.printf("[TELEMETRY] Power: %.1fW | Sess: %.3fkWh | Tot: %.3fkWh | Buf: %.3fkWh\n", current_power, session_kwh, total_kwh, offline_kwh_buffer);
@@ -406,6 +440,7 @@ void sendHeartbeat() {
 
   int httpResponseCode = http.POST(payload);
   if (httpResponseCode > 0) {
+    lastSuccessfulServerPing = millis();
     String response = http.getString();
     StaticJsonDocument<500> respDoc;
     DeserializationError error = deserializeJson(respDoc, response);
@@ -430,7 +465,13 @@ void sendHeartbeat() {
 }
 
 void sendTelemetry() {
-  if (WiFi.status() != WL_CONNECTED || offline_kwh_buffer <= 0.001) return; // Ignore noise
+  if (WiFi.status() != WL_CONNECTED) return; // Ignore noise
+
+  float kwh_to_send = 0.0;
+  // Only send the buffer if it's meaningful, otherwise send 0.0 to just update live power!
+  if (offline_kwh_buffer > 0.001) {
+    kwh_to_send = offline_kwh_buffer;
+  }
 
   // Safety check: The buffer should never exceed a few kWh. If it is 237 kWh, it's corrupted NVS memory!
   if (offline_kwh_buffer > 5.0) {
@@ -447,19 +488,27 @@ void sendTelemetry() {
   StaticJsonDocument<200> doc;
   doc["device_id"] = hardwareId;
   doc["session_id"] = activeSessionId;
-  doc["energy_kwh"] = offline_kwh_buffer;
+  doc["energy_kwh"] = kwh_to_send;
   doc["power_w"] = current_power;
 
-  String payload;
-  serializeJson(doc, payload);
+  String requestBody;
+  serializeJson(doc, requestBody);
 
-  int httpResponseCode = http.POST(payload);
+  int httpResponseCode = http.POST(requestBody);
+  
   if (httpResponseCode > 0) {
-    offline_kwh_buffer = 0.0;
-    saveToFlash();
+    lastSuccessfulServerPing = millis();
+    if (kwh_to_send > 0.0) {
+      offline_kwh_buffer = 0.0; // Only reset if we actually sent it
+      saveToFlash();
+    }
+    Serial.print("[TELEMETRY] Sent "); Serial.print(kwh_to_send, 4); 
+    Serial.print(" kWh, Live: "); Serial.print(current_power); Serial.println(" W");
   } else {
-    Serial.printf("[HTTP] Telemetry Error: %d\n", httpResponseCode);
+    Serial.print("[TELEMETRY] Failed, Code: ");
+    Serial.println(httpResponseCode);
   }
+  
   http.end();
 }
 
