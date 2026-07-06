@@ -66,8 +66,10 @@ unsigned long faultStartTime = 0;
 unsigned long sessionStartTime = 0;
 unsigned long lastSaveTime = 0;
 unsigned long lastSuccessfulServerPing = 0;
+unsigned long lowPowerStartTime = 0;
 bool wifiWasConnected = false;
 int displayScreen = 0;
+int pzemErrorCount = 0;
 String faultMessage = "";
 
 // --- FUNCTION PROTOTYPES ---
@@ -331,6 +333,7 @@ void connectWiFi() {
 void startSession(bool silent) {
   currentState = SESSION_ACTIVE;
   sessionStartTime = millis();
+  lowPowerStartTime = 0; // Reset timer on new session
   current_power = 0.0;
   preferences.putBool("is_active", true);
   preferences.putLong("session_id", activeSessionId);
@@ -378,7 +381,18 @@ void handleTelemetry() {
     current_voltage = 0.0;
     current_power = 0.0;
     current_pf = 0.0;
+    pzemErrorCount++;
+    
+    // Auto-Recovery for UART EMI Lockup (If no RC Snubber attached)
+    if (pzemErrorCount >= 2) {
+      Serial.println("[SYSTEM] Attempting PZEM UART Soft-Reset due to EMI lockup...");
+      PzemSerial.end();
+      delay(100);
+      PzemSerial.begin(9600, SERIAL_8N1, PIN_PZEM_RX, PIN_PZEM_TX);
+      pzemErrorCount = 0; // Reset count after attempt
+    }
   } else {
+    pzemErrorCount = 0; // Reset counter on successful read
     current_voltage = v;
     current_power = pzem.power();
     
@@ -412,6 +426,28 @@ void handleTelemetry() {
     if (currentState == SESSION_ACTIVE && (millis() - lastSaveTime > 60000)) {
       saveToFlash();
       lastSaveTime = millis();
+    }
+    
+    // -------------------------------------------------------------
+    // REMOTE CONTROL AUTO-STOP DETECTOR
+    // -------------------------------------------------------------
+    // If the student turns off the AC with the remote, it only draws 
+    // ~1W-5W of standby power. If power is < 10W for 3 minutes, auto-stop!
+    if (currentState == SESSION_ACTIVE && (millis() - sessionStartTime > 10000)) { 
+      if (current_power < 10.0) {
+        if (lowPowerStartTime == 0) {
+          lowPowerStartTime = millis();
+        } else if (millis() - lowPowerStartTime > 180000) { // 3 Minutes
+          Serial.println("[SYSTEM] AC turned off by remote! Auto-stopping session.");
+          stopSession();
+          currentState = FAULT;
+          faultMessage = "AC OFF BY REMOTE";
+          digitalWrite(PIN_LED_RED, HIGH);
+          lastHeartbeatTime = 0; // Force instant heartbeat to tell backend!
+        }
+      } else {
+        lowPowerStartTime = 0; // Reset if power goes back up (compressor or blower kicks in)
+      }
     }
   }
   
