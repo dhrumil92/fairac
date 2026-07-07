@@ -137,4 +137,19 @@ const joinHostelValidation = [
 ];
 router.post('/join-hostel', authenticate, joinHostelValidation, controller.joinHostel);
 
+// POST /api/v1/auth/change-password
+const changePasswordValidation = [
+  body('currentPassword').notEmpty().withMessage('Current password is required.'),
+  body('newPassword')
+    .notEmpty()
+    .withMessage('New password is required.')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters.')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain at least one uppercase letter.')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number.'),
+];
+router.post('/change-password', authenticate, changePasswordValidation, controller.changePassword);
+
 module.exports = router;

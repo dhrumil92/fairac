@@ -392,3 +392,23 @@ module.exports = {
   leaveHostel,
   joinHostel,
 };
+
+// =============================================================================
+// changePassword
+// =============================================================================
+const changePassword = async (u_id, currentPassword, newPassword) => {
+  const { rows } = await db.query('SELECT password_hash FROM users WHERE u_id = $1', [u_id]);
+  if (rows.length === 0) throw createError(404, 'User not found.');
+
+  const user = rows[0];
+  const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!isMatch) throw createError(401, 'Current password is incorrect.');
+
+  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10;
+  const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+  await db.query('UPDATE users SET password_hash = $1 WHERE u_id = $2', [hashedPassword, u_id]);
+  return true;
+};
+
+module.exports.changePassword = changePassword;

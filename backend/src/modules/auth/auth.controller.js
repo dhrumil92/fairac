@@ -209,3 +209,23 @@ module.exports = {
   leaveHostel,
   joinHostel
 };
+
+// =============================================================================
+// changePassword
+// =============================================================================
+const changePassword = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { currentPassword, newPassword } = req.body;
+    await authService.changePassword(req.user.u_id, currentPassword, newPassword);
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports.changePassword = changePassword;
+

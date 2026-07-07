@@ -73,6 +73,7 @@ const getTransactions = async (u_id, { page = 1, limit = 20, type = null, date =
        -- Session info (only for consumption transactions)
        s.start_time   AS session_start,
        s.end_time     AS session_end,
+       s.session_type AS booking_type,
        r.room_no,
        -- Running balance (cumulative sum for mini-statement view)
        COUNT(*) OVER() AS total_count
