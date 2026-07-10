@@ -9,11 +9,13 @@ import {
   StatusBar, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useBLE } from '../../context/BLEContext';
 import api from '../../api/axios';
 import { colors } from '../../theme/colors';
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
+  const { forceDisconnectAll } = useBLE();
 
   const [roomInfo, setRoomInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +40,10 @@ const ProfileScreen = ({ navigation }) => {
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: logout },
+      { text: 'Logout', style: 'destructive', onPress: async () => {
+        try { await forceDisconnectAll(); } catch (e) { console.log('BLE disconnect failed', e); }
+        logout();
+      }},
     ]);
   };
 

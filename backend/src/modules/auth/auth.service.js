@@ -411,4 +411,13 @@ const changePassword = async (u_id, currentPassword, newPassword) => {
   return true;
 };
 
+// =============================================================================
+// updatePushToken
+// =============================================================================
+const updatePushToken = async (u_id, pushToken) => {
+  await db.query('UPDATE users SET push_token = $1 WHERE u_id = $2', [pushToken, u_id]);
+  return true;
+};
+
 module.exports.changePassword = changePassword;
+module.exports.updatePushToken = updatePushToken;

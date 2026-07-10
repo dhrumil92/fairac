@@ -5,6 +5,7 @@
 
 const db = require('../../config/db');
 const { createError } = require('../../middleware/errorHandler');
+const { sendPushNotification } = require('../../utils/push');
 
 // ─── Helper: assertRoomMember ─────────────────────────────────────────────
 // Verifies the user is an active member of the given room.
@@ -47,9 +48,12 @@ const getSessionWithParticipants = async (session_id) => {
 
   const participantsResult = await db.query(
     `SELECT sp.sp_id, sp.u_id, sp.status, sp.leave_status, sp.joined_at, sp.left_at,
-            u.name, u.email
+            u.name, u.email,
+            cr.units_consumed AS units_consumed,
+            cr.cost AS cost
      FROM session_participants sp
      JOIN users u ON u.u_id = sp.u_id
+     LEFT JOIN consumption_records cr ON cr.session_id = sp.session_id AND cr.u_id = sp.u_id
      WHERE sp.session_id = $1
      ORDER BY sp.joined_at ASC NULLS LAST`,
     [session_id]
@@ -253,7 +257,7 @@ const getActiveSession = async (u_id) => {
 
   const sessionResult = await db.query(
     `SELECT session_id FROM sessions
-     WHERE r_id = $1 AND status = 'active' LIMIT 1`,
+     WHERE r_id = $1 AND status IN ('active', 'booked') LIMIT 1`,
     [r_id]
   );
 
@@ -326,6 +330,16 @@ const getMySessionHistory = async (u_id, { page = 1, limit = 7, type = null, dat
             sp.status AS my_participation_status,
             cr.units_consumed AS my_units,
             cr.cost AS my_cost,
+            -- Fallback: if only one participant, my_cost = total session cost
+            COALESCE(
+              cr.cost,
+              CASE 
+                WHEN (SELECT COUNT(*) FROM session_participants sp3 WHERE sp3.session_id = s.session_id AND sp3.status IN ('accepted','left')) = 1
+                THEN s.total_units * s.rate_per_unit
+                ELSE NULL
+              END
+            ) AS my_cost_display,
+            (s.total_units * s.rate_per_unit) AS total_cost,
             EXTRACT(EPOCH FROM (COALESCE(s.end_time, NOW()) - s.start_time))/60 AS duration_minutes,
             (
               SELECT json_agg(json_build_object('name', u.name))
@@ -377,9 +391,20 @@ const validateParticipantBalance = async (u_id, session_id, actionContext = 'joi
   if (sessionResult.rows.length === 0) throw createError(404, 'Session not found.');
   
   const { session_type, target_value, rate_per_unit } = sessionResult.rows[0];
-  const AC_POWER_KW = 1.5;
+  const AC_POWER_KW = 4.5;
 
-  if (session_type === 'unlimited') {
+  // New BLE Offline Architecture Types (target_value = max_kwh)
+  if (['units', 'amount', 'duration'].includes(session_type)) {
+    const required_balance = parseFloat((parseFloat(target_value) * parseFloat(rate_per_unit)).toFixed(2));
+    if (balance < required_balance) {
+      throw createError(400, actionContext === 'invite'
+        ? `Cannot invite this user. Their balance (₹${balance.toFixed(2)}) is lower than the max session cost (₹${required_balance.toFixed(2)}).`
+        : `Cannot participate. Your balance (₹${balance.toFixed(2)}) is lower than the max session cost (₹${required_balance.toFixed(2)}).`
+      );
+    }
+  } 
+  // Old Web App Architecture Types
+  else if (session_type === 'unlimited') {
     if (balance < 50) {
       throw createError(400, actionContext === 'invite' 
         ? `Cannot invite this user. Their wallet balance is below ₹50.`
@@ -397,14 +422,6 @@ const validateParticipantBalance = async (u_id, session_id, actionContext = 'joi
       throw createError(400, actionContext === 'invite'
         ? `Cannot invite this user. Their balance (₹${balance}) cannot cover ${target_value} units.`
         : `Cannot participate. Your balance (₹${balance}) cannot cover ${target_value} units.`
-      );
-    }
-  } else if (session_type === 'duration') {
-    const maxHours = balance / (AC_POWER_KW * rate_per_unit);
-    if (target_value > maxHours) {
-      throw createError(400, actionContext === 'invite'
-        ? `Cannot invite this user. Their balance (₹${balance}) cannot cover ${target_value} hours.`
-        : `Cannot participate. Your balance (₹${balance}) cannot cover ${target_value} hours.`
       );
     }
   }
@@ -426,7 +443,7 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
 
   const session = sessResult.rows[0];
 
-  if (!['pending', 'active'].includes(session.status)) {
+  if (!['pending', 'active', 'booked'].includes(session.status)) {
     throw createError(409, `Cannot invite to a ${session.status} session.`);
   }
 
@@ -470,6 +487,18 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
     [session_id, invitee_id]
   );
 
+  // Notify the invitee with Accept/Reject action buttons
+  const inviterData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
+  const inviterName = inviterData.rows[0]?.name || 'Your roommate';
+  const roomData = await db.query('SELECT room_no FROM rooms WHERE r_id = $1', [session.r_id]);
+  const roomNo = roomData.rows[0]?.room_no || '';
+  await sendPushNotification(
+    invitee_id,
+    '⚡ Session Invitation',
+    `${inviterName} invited you to join the AC session in Room ${roomNo}. Your share will be deducted from your wallet.`,
+    { type: 'SESSION_INVITE', categoryId: 'SESSION_INVITE', session_id: session_id }
+  );
+
   return { message: 'Participant invited successfully.' };
 };
 
@@ -495,8 +524,8 @@ const acceptSessionInvite = async ({ u_id, session_id }) => {
   const sessResult = await db.query(
     `SELECT status FROM sessions WHERE session_id = $1`, [session_id]
   );
-  if (sessResult.rows[0].status !== 'active') {
-    throw createError(409, 'Session is no longer active.');
+  if (!['active', 'booked'].includes(sessResult.rows[0].status)) {
+    throw createError(409, 'Session is no longer active or booked.');
   }
 
   // Validate the user has enough balance to accept
@@ -551,7 +580,7 @@ const joinSession = async ({ u_id, session_id }) => {
   if (sessResult.rows.length === 0) throw createError(404, 'Session not found.');
   const session = sessResult.rows[0];
 
-  if (session.status !== 'active') {
+  if (!['active', 'booked'].includes(session.status)) {
     throw createError(409, `Cannot join a ${session.status} session.`);
   }
 
@@ -616,8 +645,8 @@ const leaveSession = async ({ u_id, session_id }) => {
   const sessResult = await db.query(
     `SELECT status FROM sessions WHERE session_id = $1`, [session_id]
   );
-  if (sessResult.rows[0].status !== 'active') {
-    throw createError(409, 'Session is not active.');
+  if (!['active', 'booked'].includes(sessResult.rows[0].status)) {
+    throw createError(409, 'Session is not active or booked.');
   }
 
   // IMPORTANT BUSINESS LOGIC CHANGE: 
@@ -627,6 +656,22 @@ const leaveSession = async ({ u_id, session_id }) => {
      WHERE session_id = $1 AND u_id = $2`,
     [session_id, u_id]
   );
+
+  // Notify other active participants to approve/reject the leave request
+  const leaverData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
+  const leaverName = leaverData.rows[0]?.name || 'Your roommate';
+  const otherParticipants = await db.query(
+    `SELECT u_id FROM session_participants WHERE session_id = $1 AND u_id != $2 AND status = 'accepted' AND left_at IS NULL`,
+    [session_id, u_id]
+  );
+  for (const p of otherParticipants.rows) {
+    await sendPushNotification(
+      p.u_id,
+      '🚪 Leave Request',
+      `${leaverName} wants to leave the AC session early. Approve or reject their request.`,
+      { type: 'LEAVE_REQUEST', categoryId: 'LEAVE_REQUEST', session_id: session_id, leaving_u_id: u_id }
+    );
+  }
 
   return { message: 'Leave request sent. Awaiting approval from a roommate.' };
 };
@@ -662,6 +707,35 @@ const approveLeave = async ({ approver_id, session_id, leaving_u_id }) => {
     [session_id, leaving_u_id]
   );
 
+  // ── Deadlock Prevention ────────────────────────────────────────────────────
+  // After the leaver is removed, check if the approver is now the LAST remaining
+  // active participant. If so, auto-cancel the approver's own pending leave
+  // request (if any), because nobody is left to approve it.
+  // The approver must now either stay or End Session themselves.
+  const remainingResult = await db.query(
+    `SELECT u_id FROM session_participants
+     WHERE session_id = $1 AND status = 'accepted' AND left_at IS NULL AND u_id != $2`,
+    [session_id, approver_id]
+  );
+  if (remainingResult.rows.length === 0) {
+    // Approver is now alone — cancel their own pending leave if any
+    await db.query(
+      `UPDATE session_participants SET leave_status = 'none'
+       WHERE session_id = $1 AND u_id = $2 AND leave_status = 'pending'`,
+      [session_id, approver_id]
+    );
+  }
+
+  // Notify the leaver that their request was approved
+  const approverData = await db.query('SELECT name FROM users WHERE u_id = $1', [approver_id]);
+  const approverName = approverData.rows[0]?.name || 'Your roommate';
+  await sendPushNotification(
+    leaving_u_id,
+    '✅ Leave Approved',
+    `${approverName} approved your leave request. Your billing has stopped.`,
+    { type: 'LEAVE_APPROVED', categoryId: 'SESSION_UPDATE', session_id: session_id }
+  );
+
   return { message: 'Leave request approved successfully.' };
 };
 
@@ -694,6 +768,16 @@ const rejectLeave = async ({ approver_id, session_id, leaving_u_id }) => {
     `UPDATE session_participants SET leave_status = 'none'
      WHERE session_id = $1 AND u_id = $2`,
     [session_id, leaving_u_id]
+  );
+
+  // Notify the leaver that their request was rejected
+  const rejectApproverData = await db.query('SELECT name FROM users WHERE u_id = $1', [approver_id]);
+  const rejectApproverName = rejectApproverData.rows[0]?.name || 'Your roommate';
+  await sendPushNotification(
+    leaving_u_id,
+    '❌ Leave Rejected',
+    `${rejectApproverName} rejected your leave request. You are still in the session.`,
+    { type: 'LEAVE_REJECTED', categoryId: 'SESSION_UPDATE', session_id: session_id }
   );
 
   return { message: 'Leave request rejected successfully.' };
@@ -764,6 +848,10 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
   );
   if (role !== 'admin' && session.created_by !== u_id && isParticipantResult.rows.length === 0) {
     throw createError(403, 'Only active session participants can end the session.');
+  }
+  if (session.status === 'booked') {
+    // Session never successfully started via Bluetooth. Just refund the hold!
+    return await syncSession({ u_id, session_id, total_units: 0 });
   }
   if (session.status !== 'active') {
     throw createError(409, `Session is already ${session.status}.`);
@@ -961,11 +1049,355 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
   }
 };
 
+// =============================================================================
+// bookSession (BLE Offline Architecture)
+// =============================================================================
+const bookSession = async ({ u_id, r_id, booking_type, booking_value }) => {
+  await assertRoomMember(u_id, r_id);
+
+  const roomResult = await db.query(
+    `SELECT h.rate_per_unit, h.is_active AS hostel_active, r.is_active AS room_active
+     FROM rooms r 
+     JOIN hostels h ON h.hostel_id = r.hostel_id 
+     WHERE r.r_id = $1`,
+    [r_id]
+  );
+  if (roomResult.rows.length === 0) throw createError(404, 'Room not found.');
+  const { rate_per_unit, hostel_active, room_active } = roomResult.rows[0];
+  if (!room_active) throw createError(403, 'Your room is deactivated, cannot start AC.');
+  if (!hostel_active) throw createError(403, 'This hostel is inactive.');
+
+  const walletCheck = await db.query(`SELECT wallet_id, balance FROM wallets WHERE u_id = $1`, [u_id]);
+  if (walletCheck.rows.length === 0) throw createError(400, 'No wallet found.');
+  const balance = parseFloat(walletCheck.rows[0].balance);
+  const wallet_id = walletCheck.rows[0].wallet_id;
+  if (balance < 50) throw createError(400, 'Minimum wallet balance of ₹50 is required.');
+
+  // Prevent multiple active or booked sessions in the same room
+  const existingSession = await db.query(
+    `SELECT session_id FROM sessions WHERE r_id = $1 AND status IN ('active', 'booked')`,
+    [r_id]
+  );
+  if (existingSession.rows.length > 0) {
+    throw createError(409, 'A session is already active or booked in this room. Please stop it first.');
+  }
+
+  // Max assumed AC power draw (3-ton AC at minimum temp = 4.5kW worst case)
+  // Used to conservatively block funds for duration-based bookings.
+  const AC_POWER_KW = 4.5;
+  let max_kwh = 0;
+  let max_duration_sec = 0; // 0 means no time limit (for units/amount bookings)
+  
+  if (booking_type === 'units') {
+    max_kwh = parseFloat(booking_value);
+    max_duration_sec = 0; // No time limit; ESP32 enforces kWh limit only
+  } else if (booking_type === 'amount') {
+    max_kwh = parseFloat(booking_value) / rate_per_unit;
+    max_duration_sec = 0; // No time limit; ESP32 enforces kWh limit only
+  } else if (booking_type === 'duration') {
+    const duration_hours = parseFloat(booking_value);
+    max_kwh = duration_hours * AC_POWER_KW; // Worst-case block (refunded based on actual use)
+    max_duration_sec = Math.round(duration_hours * 3600); // ESP32 enforces this hard time limit
+  } else {
+    throw createError(400, 'Invalid booking type.');
+  }
+
+  const block_amount = max_kwh * rate_per_unit;
+  if (block_amount > balance) {
+    throw createError(400, `Insufficient funds. Booking requires ₹${block_amount.toFixed(2)} but your balance is ₹${balance.toFixed(2)}.`);
+  }
+
+  const client = await db.getClient();
+  let bookingResult;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Create a "booked" session record
+    const sessionRes = await client.query(
+      `INSERT INTO sessions (r_id, created_by, status, rate_per_unit, target_value, session_type)
+       VALUES ($1, $2, 'booked', $3, $4, $5)
+       RETURNING session_id`,
+      [r_id, u_id, rate_per_unit, max_kwh, booking_type]
+    );
+    const session_id = sessionRes.rows[0].session_id;
+
+    // 2. Block the funds (Debit)
+    await client.query(
+      `UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE u_id = $2`,
+      [block_amount, u_id]
+    );
+
+    // 3. Record transaction
+    await client.query(
+      `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
+       VALUES ($1, $2, $3, 'consumption', $4)`,
+      [wallet_id, session_id, block_amount, 'AC Booking Hold']
+    );
+
+    // 4. Add creator as a participant automatically
+    await client.query(
+      `INSERT INTO session_participants (session_id, u_id, status, joined_at)
+       VALUES ($1, $2, 'accepted', NOW())`,
+      [session_id, u_id]
+    );
+
+    await client.query('COMMIT');
+    bookingResult = { session_id, max_kwh, max_duration_sec, block_amount, rate_per_unit };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return bookingResult;
+};
+
+// =============================================================================
+// activateSession (BLE Offline Architecture)
+// =============================================================================
+// Called by the mobile app after successfully starting the AC via BLE.
+const activateSession = async ({ u_id, session_id }) => {
+  const result = await db.query(
+    `UPDATE sessions SET status = 'active', start_time = NOW()
+     WHERE session_id = $1 AND status = 'booked' AND created_by = $2
+     RETURNING session_id`,
+    [session_id, u_id]
+  );
+  if (result.rows.length === 0) {
+    throw createError(404, 'Session not found or already active.');
+  }
+  return { message: 'Session activated successfully.' };
+};
+
+// =============================================================================
+// cancelSession (BLE Offline Architecture)
+// =============================================================================
+// Called if the mobile app fails to start the AC via BLE after booking.
+// Refunds the completely blocked amount.
+const cancelSession = async ({ u_id, session_id }) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `UPDATE sessions SET status = 'cancelled'
+       WHERE session_id = $1 AND status = 'booked' AND created_by = $2
+       RETURNING session_id`,
+      [session_id, u_id]
+    );
+    if (result.rows.length === 0) {
+      throw createError(404, 'Session not found or cannot be cancelled.');
+    }
+    
+    // Reverse the hold
+    const txRes = await client.query(
+      `SELECT amount, wallet_id FROM wallet_transactions 
+       WHERE session_id = $1 AND type = 'consumption' AND description = 'AC Booking Hold'`,
+      [session_id]
+    );
+    
+    if (txRes.rows.length > 0) {
+      const { amount, wallet_id } = txRes.rows[0];
+      await client.query(
+        `UPDATE wallets SET balance = balance + $1 WHERE wallet_id = $2`,
+        [amount, wallet_id]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
+         VALUES ($1, $2, $3, 'refund', 'AC Booking Hold Cancelled')`,
+        [wallet_id, session_id, amount]
+      );
+    }
+    await client.query('COMMIT');
+    return { message: 'Session cancelled and fully refunded.' };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================================================
+// syncSession (BLE Offline Architecture — Fair Cost Split)
+// =============================================================================
+// When a session ends (manually or autonomously), the mobile app sends the
+// final kWh reading. This function:
+//   1. Calculates the ACTUAL total cost from the true kWh consumed.
+//   2. Looks at ALL accepted participants and their joined_at / left_at times.
+//   3. Splits the cost PROPORTIONALLY based on participation time.
+//      (e.g. if user A was in for 60min and user B for 30min → 67% / 33% split)
+//   4. Deducts each participant's share from their respective wallet.
+//   5. Refunds the CREATOR (who pre-paid the full blocked amount) the excess:
+//      i.e. the full blocked amount - the creator's own share.
+// =============================================================================
+const syncSession = async ({ u_id, session_id, total_units }) => {
+  const sessionResult = await db.query(
+    `SELECT * FROM sessions WHERE session_id = $1 AND status IN ('booked', 'active')`,
+    [session_id]
+  );
+  if (sessionResult.rows.length === 0) {
+    throw createError(404, 'Active/Booked session not found or already settled.');
+  }
+  const session = sessionResult.rows[0];
+  const rate_per_unit = parseFloat(session.rate_per_unit);
+  const max_kwh = parseFloat(session.target_value);
+  const blocked_amount = max_kwh * rate_per_unit;
+
+  // Cap actual consumption at the booked limit (never overcharge)
+  const actual_consumed = Math.min(parseFloat(total_units), max_kwh);
+  const actual_total_cost = parseFloat((actual_consumed * rate_per_unit).toFixed(2));
+
+  // ── Fetch all accepted participants with their timestamps ──────────────────
+  const participantsResult = await db.query(
+    `SELECT sp.u_id, sp.joined_at, sp.left_at, w.wallet_id
+     FROM session_participants sp
+     JOIN wallets w ON w.u_id = sp.u_id
+     WHERE sp.session_id = $1 AND sp.status IN ('accepted', 'left')
+     ORDER BY sp.joined_at ASC NULLS LAST`,
+    [session_id]
+  );
+  const participants = participantsResult.rows;
+
+  if (participants.length === 0) {
+    throw createError(400, 'No accepted participants found for this session.');
+  }
+
+  // ── Calculate each participant's time share ────────────────────────────────
+  // Session end time (use NOW() as proxy since we're settling right now)
+  const sessionEnd = new Date();
+  const sessionStart = new Date(session.start_time);
+
+  let shares = participants.map((p) => {
+    const joinTime = new Date(p.joined_at || session.start_time);
+    const leaveTime = p.left_at ? new Date(p.left_at) : sessionEnd;
+    const participationMs = Math.max(0, leaveTime.getTime() - joinTime.getTime());
+    return { ...p, participationMs };
+  });
+
+  const totalMs = shares.reduce((sum, p) => sum + p.participationMs, 0);
+
+  if (totalMs === 0) {
+    // Edge case: all joined and left at the same ms — split equally
+    shares = shares.map((p) => ({ ...p, sharePercent: 1 / shares.length }));
+  } else {
+    shares = shares.map((p) => ({ ...p, sharePercent: p.participationMs / totalMs }));
+  }
+
+  // Assign costs — last participant absorbs any rounding remainder
+  let assignedSoFar = 0;
+  shares = shares.map((p, idx) => {
+    let cost;
+    if (idx === shares.length - 1) {
+      // Last participant gets the remainder to avoid floating point drift
+      cost = parseFloat((actual_total_cost - assignedSoFar).toFixed(2));
+    } else {
+      cost = parseFloat((actual_total_cost * p.sharePercent).toFixed(2));
+      assignedSoFar += cost;
+    }
+    return { ...p, cost, units: parseFloat((actual_consumed * p.sharePercent).toFixed(4)) };
+  });
+
+  const creatorShare = shares.find((p) => String(p.u_id) === String(session.created_by));
+  // The creator pre-paid 'blocked_amount'. Refund = blocked - creator's share
+  const creatorRefund = parseFloat((blocked_amount - (creatorShare?.cost || actual_total_cost)).toFixed(2));
+
+  const client = await db.getClient();
+  let settlementResult;
+  try {
+    await client.query('BEGIN');
+
+    // 1. Mark session completed with real kWh
+    await client.query(
+      `UPDATE sessions SET status = 'completed', end_time = NOW(), total_units = $1 WHERE session_id = $2`,
+      [actual_consumed, session_id]
+    );
+
+    // 2. Refund creator: blocked_amount - their_own_share
+    if (creatorRefund > 0.01) {
+      const creatorWalletRow = await client.query(
+        `SELECT wallet_id FROM wallets WHERE u_id = $1`, [session.created_by]
+      );
+      const creatorWalletId = creatorWalletRow.rows[0]?.wallet_id;
+      if (creatorWalletId) {
+        await client.query(
+          `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE wallet_id = $2`,
+          [creatorRefund, creatorWalletId]
+        );
+        await client.query(
+          `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
+           VALUES ($1, $2, $3, 'recharge', $4)`,
+          [creatorWalletId, session_id, creatorRefund, 'AC Session Refund (Unused + Co-pay)']
+        );
+      }
+    }
+
+    // 3. Deduct each NON-CREATOR participant's share from their wallet
+    for (const p of shares) {
+      if (String(p.u_id) === String(session.created_by)) continue; // Skip creator (already handled via refund)
+      if (p.cost <= 0) continue;
+
+      // Check sufficient balance
+      const balRow = await client.query(`SELECT balance FROM wallets WHERE wallet_id = $1`, [p.wallet_id]);
+      const balance = parseFloat(balRow.rows[0]?.balance || 0);
+      const deduct = Math.min(p.cost, balance); // Never go negative
+
+      await client.query(
+        `UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE wallet_id = $2`,
+        [deduct, p.wallet_id]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
+         VALUES ($1, $2, $3, 'consumption', $4)`,
+        [p.wallet_id, session_id, deduct,
+          `AC Session #${session_id} (${(p.sharePercent * 100).toFixed(0)}% share)`]
+      );
+    }
+
+    // 4. Write consumption_records for every participant (for history display)
+    for (const p of shares) {
+      await client.query(
+        `INSERT INTO consumption_records (session_id, u_id, units_consumed, cost, recorded_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (session_id, u_id) DO UPDATE
+           SET units_consumed = EXCLUDED.units_consumed,
+               cost = EXCLUDED.cost,
+               recorded_at = EXCLUDED.recorded_at`,
+        [session_id, p.u_id, p.units, p.cost]
+      );
+    }
+
+    await client.query('COMMIT');
+    settlementResult = {
+      actual_consumed,
+      actual_total_cost,
+      creator_refund: creatorRefund,
+      billing_summary: shares.map((p) => ({
+        u_id: p.u_id,
+        share_percent: parseFloat((p.sharePercent * 100).toFixed(1)),
+        units: p.units,
+        cost: p.cost,
+      })),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return settlementResult;
+};
+
 module.exports = {
   startSession,
   getActiveSession,
   getSessionById,
   getMySessionHistory,
+  bookSession,
+  activateSession,
+  cancelSession,
+  syncSession,
   inviteParticipant,
   acceptSessionInvite,
   rejectSessionInvite,
@@ -973,5 +1405,5 @@ module.exports = {
   leaveSession,
   approveLeave,
   rejectLeave,
-  endSession,
+  endSession
 };

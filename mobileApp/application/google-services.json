@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1016473271353",
+    "project_id": "com-dhrumil92-application",
+    "storage_bucket": "com-dhrumil92-application.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1016473271353:android:8a4bccb65a8b416a2be1e8",
+        "android_client_info": {
+          "package_name": "com.dhrumil92.application"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKXSEibjXUTLYX2OUrZsXOXwP53rIiL90"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

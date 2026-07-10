@@ -83,8 +83,14 @@ router.get('/active', controller.getActiveSession);
 // GET /api/v1/sessions/my — my session history
 router.get('/my', controller.getMySessionHistory);
 
-// POST /api/v1/sessions/start — start a new session
+// POST /api/v1/sessions/start — start a new session (Web App)
 router.post('/start', startSessionValidation, controller.startSession);
+
+// POST /api/v1/sessions/book — book a session (Mobile BLE Flow)
+router.post('/book', controller.bookSession);
+
+// POST /api/v1/sessions/sync — sync offline data (Mobile BLE Flow)
+router.post('/sync', controller.syncSession);
 
 // POST /api/v1/sessions/participants/invite
 router.post('/participants/invite', inviteValidation, controller.inviteParticipant);
@@ -104,7 +110,11 @@ router.post('/participants/leave/approve', approveLeaveValidation, controller.ap
 // POST /api/v1/sessions/participants/leave/reject
 router.post('/participants/leave/reject', approveLeaveValidation, controller.rejectLeaveSession);
 
-// Dynamic routes after static ones
+// POST /api/v1/sessions/:id/activate — activate a booked session
+router.post('/:id/activate', controller.activateSession);
+
+// POST /api/v1/sessions/:id/cancel — cancel a booked session
+router.post('/:id/cancel', controller.cancelSession);
 
 // GET /api/v1/sessions/:id — get specific session details
 router.get('/:id', controller.getSessionById);

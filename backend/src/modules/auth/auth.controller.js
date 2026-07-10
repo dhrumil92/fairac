@@ -227,5 +227,22 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports.changePassword = changePassword;
+// =============================================================================
+// updatePushToken
+// =============================================================================
+const updatePushToken = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { pushToken } = req.body;
+    await authService.updatePushToken(req.user.u_id, pushToken);
+    res.status(200).json({
+      success: true,
+      message: 'Push token updated successfully.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
+module.exports.changePassword = changePassword;
+module.exports.updatePushToken = updatePushToken;

@@ -102,7 +102,7 @@ const WalletScreen = () => {
             const d = new Date(s.start_time);
             return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
           });
-          mSpent = monthly.reduce((sum, s) => sum + parseFloat(s.my_cost || 0), 0);
+          mSpent = monthly.reduce((sum, s) => sum + parseFloat(s.my_cost_display || s.my_cost || 0), 0);
         }
 
         if (txRes?.data?.data?.transactions) {

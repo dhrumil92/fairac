@@ -15,13 +15,37 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ],
+      "package": "com.dhrumil92.application",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": [
+            "peripheral",
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Allow FairAC to connect to your room's smart AC controller.",
+          "bluetoothPeripheralPermission": "Allow FairAC to connect to your room's smart AC controller."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dc599069-a9df-4053-ad43-a7c75c05c7b3"
+      }
+    }
   }
 }

@@ -18,6 +18,4 @@ badha edge cases mangavna che antigravity pase thi.
 -------
 app
 ------
-wallet screen this month spend brarabar nathi batavta data khoto data batave che
-filter ma refund add karvanu che
-session page ma haji mare page refresh karvu pade che last  just ended session no data jova
+wallet screen ma filter ma refund add karvanu che

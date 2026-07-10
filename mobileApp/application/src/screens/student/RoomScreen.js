@@ -9,9 +9,12 @@ import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../theme/colors';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import * as Notifications from 'expo-notifications';
+import { useBLE } from '../../context/BLEContext';
 
 const RoomScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const { disconnectFromDevice } = useBLE();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,6 +58,19 @@ const RoomScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchRoomData();
+
+    // Listen for Push Notifications in the background to instantly refresh data
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      const data = notification.request.content.data;
+      if (data?.type === 'INVITE_RECEIVED' || data?.type === 'INVITE_ACCEPTED') {
+        // Someone invited us OR someone accepted our invite -> refresh silently
+        fetchRoomData();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, [fetchRoomData]);
 
   const onRefresh = () => {
@@ -91,6 +107,7 @@ const RoomScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await api.patch(`/rooms/${room.r_id}/leave`);
+              disconnectFromDevice(); // Instantly disconnect BLE when leaving
               Alert.alert('Success', 'Successfully left the room.');
               setRoom(null);
               fetchNoRoomData();

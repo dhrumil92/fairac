@@ -5,6 +5,7 @@
 
 const db = require('../../config/db');
 const { createError } = require('../../middleware/errorHandler');
+const { sendPushNotification } = require('../../utils/push');
 
 // ─── Helper: getActiveRoomMembership ──────────────────────────────────────
 // Checks if a user is currently in any room (left_at IS NULL).
@@ -149,12 +150,13 @@ const getMyRoom = async (u_id) => {
   // Find the user's active room membership
   const membershipResult = await db.query(
     `SELECT rm.r_id, rm.role AS my_role, rm.joined_at,
-            r.room_no, r.room_name, r.capacity, h.rate_per_unit AS rate_per_unit,
+            r.room_no, r.room_name, r.capacity, d.device_id AS ac_device_name, h.rate_per_unit AS rate_per_unit,
             r.hostel_id, h.name AS hostel_name,
             r.created_by, r.is_active AS room_active, h.is_active AS hostel_active
      FROM room_members rm
-     JOIN rooms r ON r.r_id = rm.r_id
-     JOIN hostels h ON h.hostel_id = r.hostel_id
+     JOIN rooms r ON rm.r_id = r.r_id
+     JOIN hostels h ON r.hostel_id = h.hostel_id
+     LEFT JOIN devices d ON d.r_id = r.r_id
      WHERE rm.u_id = $1 AND rm.left_at IS NULL
      LIMIT 1`,
     [u_id]
@@ -183,6 +185,7 @@ const getMyRoom = async (u_id) => {
     capacity:      room.capacity,
     rate_per_unit: room.rate_per_unit,
     hostel_name:   room.hostel_name,
+    ac_device_name: room.ac_device_name,
     my_role:       room.my_role,
     joined_at:     room.joined_at,
     room_active:   room.room_active,
@@ -281,6 +284,19 @@ const inviteRoommate = async ({ inviter_u_id, room_id, identifier }) => {
      VALUES ($1, $2, $3, NOW() + INTERVAL '48 hours')
      RETURNING invitation_id, status, created_at, expires_at`,
     [room_id, inviter_u_id, invitee.u_id]
+  );
+
+  // Send Push Notification to Invitee
+  const roomData = await db.query('SELECT room_no FROM rooms WHERE r_id = $1', [room_id]);
+  const roomNo = roomData.rows[0].room_no;
+  const inviterData = await db.query('SELECT name FROM users WHERE u_id = $1', [inviter_u_id]);
+  const inviterName = inviterData.rows[0].name;
+  
+  await sendPushNotification(
+    invitee.u_id,
+    'Room Invitation',
+    `${inviterName} has invited you to join Room ${roomNo}!`,
+    { type: 'INVITE_RECEIVED' }
   );
 
   return {
@@ -416,6 +432,16 @@ const acceptInvitation = async ({ u_id, invitation_id }) => {
 
     await client.query('COMMIT');
 
+    // Send push notification to the original inviter
+    const inviteeData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
+    const inviteeName = inviteeData.rows[0].name;
+    await sendPushNotification(
+      invite.sent_by,
+      'Room Update',
+      `${inviteeName} has accepted your invitation and joined Room ${invite.room_no}!`,
+      { type: 'INVITE_ACCEPTED' }
+    );
+
     return {
       message: `Successfully joined Room ${invite.room_no}.`,
       room_id: invite.room_id,
@@ -497,7 +523,7 @@ const leaveRoom = async ({ u_id, room_id }) => {
      JOIN sessions s ON s.session_id = sp.session_id
      WHERE sp.u_id = $1
        AND s.r_id = $2
-       AND s.status = 'active'
+       AND s.status IN ('active', 'booked')
        AND sp.status = 'accepted'
        AND sp.left_at IS NULL
      LIMIT 1`,

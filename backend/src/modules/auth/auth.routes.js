@@ -152,4 +152,10 @@ const changePasswordValidation = [
 ];
 router.post('/change-password', authenticate, changePasswordValidation, controller.changePassword);
 
+// POST /api/v1/auth/push-token
+const pushTokenValidation = [
+  body('pushToken').notEmpty().withMessage('Push token is required.')
+];
+router.post('/push-token', authenticate, pushTokenValidation, controller.updatePushToken);
+
 module.exports = router;

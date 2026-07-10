@@ -17,11 +17,13 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import MainTabNavigator from './MainTabNavigator';
 import RoomScreen from '../screens/student/RoomScreen';
 import ChangePasswordScreen from '../screens/student/ChangePasswordScreen';
+import usePushNotifications from '../hooks/usePushNotifications';
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   const { user, isLoading } = useAuth();
+  usePushNotifications(); // Initialize push notification listeners and tokens
 
   // Show spinner while checking saved login from AsyncStorage
   if (isLoading) {

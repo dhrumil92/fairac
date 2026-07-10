@@ -177,7 +177,7 @@ const DashboardScreen = ({ navigation }) => {
               const h = Math.floor((s.duration_minutes || 0) / 60);
               const m = Math.round((s.duration_minutes || 0) % 60);
               const durationStr = s.duration_minutes ? `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m` : '—';
-              const cost = parseFloat(s.my_cost || s.total_cost || 0).toFixed(2);
+              const cost = parseFloat(s.my_cost_display || s.my_cost || 0).toFixed(2);
 
               return (
                 <View key={s.session_id || i} style={styles.sessionItem}>

@@ -19,7 +19,7 @@ const handleValidationErrors = (req, res) => {
   return false;
 };
 
-// POST /api/v1/sessions/start
+// POST /api/v1/sessions/start (Used by Web App)
 const startSession = async (req, res, next) => {
   try {
     if (handleValidationErrors(req, res)) return;
@@ -37,6 +37,69 @@ const startSession = async (req, res, next) => {
       success: true,
       message: 'Session started. AC cost tracking is now active.',
       data: { session },
+    });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/sessions/book (Used by Mobile App BLE Flow)
+const bookSession = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { r_id, booking_type, booking_value } = req.body;
+
+    const bookingInfo = await sessionsService.bookSession({
+      u_id: req.user.u_id,
+      r_id,
+      booking_type,
+      booking_value
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Session booked. Proceed to connect via Bluetooth.',
+      data: bookingInfo,
+    });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/sessions/:id/activate
+const activateSession = async (req, res, next) => {
+  try {
+    const result = await sessionsService.activateSession({
+      u_id: req.user.u_id,
+      session_id: parseInt(req.params.id, 10),
+    });
+    res.status(200).json({ success: true, message: result.message });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/sessions/:id/cancel
+const cancelSession = async (req, res, next) => {
+  try {
+    const result = await sessionsService.cancelSession({
+      u_id: req.user.u_id,
+      session_id: parseInt(req.params.id, 10),
+    });
+    res.status(200).json({ success: true, message: result.message });
+  } catch (err) { next(err); }
+};
+
+// POST /api/v1/sessions/sync (Used by Mobile App BLE Flow)
+const syncSession = async (req, res, next) => {
+  try {
+    if (handleValidationErrors(req, res)) return;
+    const { session_id, total_units } = req.body;
+
+    const result = await sessionsService.syncSession({
+      u_id: req.user.u_id,
+      session_id,
+      total_units
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Session synced and settled successfully.',
+      data: result,
     });
   } catch (err) { next(err); }
 };
@@ -179,8 +242,12 @@ const rejectLeaveSession = async (req, res, next) => {
 module.exports = {
   startSession,
   getActiveSession,
-  getMySessionHistory,
   getSessionById,
+  getMySessionHistory,
+  bookSession,
+  activateSession,
+  cancelSession,
+  syncSession,
   endSession,
   joinSession,
   inviteParticipant,
@@ -188,5 +255,5 @@ module.exports = {
   rejectSessionInvite,
   leaveSession,
   approveLeaveSession,
-  rejectLeaveSession,
+  rejectLeaveSession
 };
