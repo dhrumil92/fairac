@@ -1,3 +1,10 @@
+add the points system if the room session did not exceed 10 a week or room total session hours of a week did not exceed 15 hours or total weekly energy consumption did not exceed 25
+if anyone exceeds then the user of the room will not get the points
+1 point = 1 rs; this 1 point will be credited to each room members
+
+
+
+transfer the wallet topup responsibility from admin to superadmin
 download receipt option after status column in all session history
 schedule ac session booking
 manage session bookings
@@ -16,3 +23,6 @@ build another website describing the problem and product
 virtual demo should be there
 in each meter there should be qr or website url mentioned along with brand name
 
+demands:
+want vidlaya's electricity bill for study purpose
+wifi connection should strong enough and should reach each and every room

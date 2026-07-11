@@ -19,3 +19,10 @@ badha edge cases mangavna che antigravity pase thi.
 app
 ------
 wallet screen ma filter ma refund add karvanu che
+
+notification ma button add karvana che
+je te notification par click kari to ee page khulvu joiye
+jemke session invite no notification hoy to session screen open thavi joiye na k home screen
+
+
+iso app banavvani che
