@@ -29,6 +29,8 @@ Migrate to **Delta-Billing** (calculating the area under the curve). We must rec
 *   **Example Flow:**
     *   T=0: A starts session. 
     *   T=60: B joins. The exact kWh is recorded (e.g., 1.4 kWh). The backend immediately settles Student A's wallet for 1.4 kWh.
+    *   T=120: Session ends at 4.0 kWh. The delta (4.0 - 1.4 = 2.6 kWh) is billed to Student B. Perfect fairness is achieved regardless of thermostat temperature.
+
 ### 2.3 The 24-Hour Maximum Booking Limit
 To prevent abuse, accidental indefinite bookings, and memory overflow on the hardware, the system will enforce a hard **24-hour limit** on any single AC session. 
 *   **Backend Validation:** The Node.js API will reject any booking request where the duration exceeds 1440 minutes.
@@ -36,7 +38,19 @@ To prevent abuse, accidental indefinite bookings, and memory overflow on the har
 
 ---
 
-## 3. The "Data Logger" Architecture (Solving the BLE Monopoly)
+## 3. Hardware Safety & AC Protection
+
+### 3.1 The Reality of Hard Power Cuts
+In Version 2.0, the hardware will be mounted entirely outside the rooms, making IR Blasters and Buzzers physically useless. Therefore, the system will rely on **Hard Power Cuts** (dropping the contactor instantly) when a session ends.
+*   **Is this safe?** Yes. Modern Inverter ACs (especially in India) are heavily over-engineered with internal discharge capacitors to survive sudden grid power failures. Electrically, dropping a contactor is indistinguishable from a standard grid outage. Commercial heavy-duty IoT switches (like Sonoff or Tuya) operate on this exact same hard-cut principle.
+
+### 3.2 Compressor Short-Cycle Protection (The True Safeguard)
+While turning an AC off abruptly is safe, **turning it back on too quickly** is what destroys compressors. When powered off, high-pressure refrigerant remains trapped. Attempting a restart immediately causes the motor to stall (Locked Rotor) and burn out.
+*   **Backend Lockout (Already Implemented):** To guarantee 100% safety, the system enforces a strict **3-minute lockout** after any power-off event. This is calculated purely on the Node.js backend. By checking the end time of the last session in the database, the API will reject any new "Start Session" requests if 3 minutes have not passed, returning a 403 error: *"Compressor cooling down to prevent damage."* This completely offloads the logic from the ESP32 and protects the hardware from short-cycling.
+
+---
+
+## 4. The "Data Logger" Architecture (Solving the BLE Monopoly)
 
 ### 3.1 The BLE Constraint
 By default, when a mobile phone connects to an ESP32 via BLE, the ESP32 stops broadcasting, preventing a second student from connecting to join the session. 
