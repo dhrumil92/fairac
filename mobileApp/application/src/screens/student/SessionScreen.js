@@ -247,11 +247,27 @@ const SessionScreen = () => {
   // ─── Start Session (Opens Booking Modal) ──────────────────────────────────
   const handleStart = () => {
     setBookingType('duration');
-    setBookingValue('');
+    setBookingValue('1.5');
     setShowBookingModal(true);
   };
 
   const confirmStart = async () => {
+    const val = parseFloat(bookingValue);
+    if (isNaN(val) || val <= 0) {
+      Alert.alert('Invalid Input', 'Please enter a valid number.');
+      return;
+    }
+    if (bookingType === 'amount') {
+      if (val < 20) { Alert.alert('Invalid Input', 'Minimum booking amount is ₹20.'); return; }
+      if (val > 100) { Alert.alert('Invalid Input', 'Maximum booking amount is ₹100.'); return; }
+    } else if (bookingType === 'units') {
+      if (val < 1.5) { Alert.alert('Invalid Input', 'Minimum booking is 1.5 kWh.'); return; }
+      if (val > 10) { Alert.alert('Invalid Input', 'Maximum booking is 10 kWh.'); return; }
+    } else if (bookingType === 'duration') {
+      if (val < 1.5) { Alert.alert('Invalid Input', 'Minimum booking duration is 1.5 hours.'); return; }
+      if (val > 12) { Alert.alert('Invalid Input', 'Maximum booking duration is 12 hours.'); return; }
+    }
+
     setActionLoading(true);
     try {
       if (!connectedDevice) {
@@ -1117,7 +1133,12 @@ const SessionScreen = () => {
                   <TouchableOpacity
                     key={t}
                     style={[styles.filterBtn, bookingType === t && styles.filterBtnActive]}
-                    onPress={() => setBookingType(t)}
+                    onPress={() => {
+                      setBookingType(t);
+                      if (t === 'amount') setBookingValue('20');
+                      else if (t === 'duration') setBookingValue('1.5');
+                      else if (t === 'units') setBookingValue('1.5');
+                    }}
                   >
                     <Text style={[styles.filterText, bookingType === t && styles.filterTextActive]}>
                       {t.charAt(0).toUpperCase() + t.slice(1)}

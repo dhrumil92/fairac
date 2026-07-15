@@ -1202,6 +1202,39 @@ const bookSession = async ({ u_id, r_id, booking_type, booking_value }) => {
   const wallet_id = walletCheck.rows[0].wallet_id;
   if (balance < 50) throw createError(400, 'Minimum wallet balance of ₹50 is required.');
 
+  // Compressor Safety Cooldown: Prevent rapid cycling by enforcing a 5-minute cooldown
+  const lastSessionResult = await db.query(
+    `SELECT end_time FROM sessions 
+     WHERE r_id = $1 AND status = 'completed' AND end_time IS NOT NULL
+     ORDER BY end_time DESC LIMIT 1`,
+    [r_id]
+  );
+  if (lastSessionResult.rows.length > 0) {
+    const lastEndTime = new Date(lastSessionResult.rows[0].end_time);
+    const timeDiffMs = new Date() - lastEndTime;
+    const cooldownMs = 5 * 60 * 1000; // 5 minutes
+    if (timeDiffMs < cooldownMs) {
+      const remainingMinutes = Math.ceil((cooldownMs - timeDiffMs) / 60000);
+      throw createError(403, `Compressor cooling down to prevent damage. Please wait ${remainingMinutes} minute(s) before starting a new session.`);
+    }
+  }
+
+  // Minimum & Maximum Booking Limits
+  const val = parseFloat(booking_value);
+  if (isNaN(val) || val <= 0) {
+    throw createError(400, 'Invalid booking value.');
+  }
+  if (booking_type === 'amount') {
+    if (val < 20) throw createError(400, 'Minimum booking amount is ₹20.');
+    if (val > 100) throw createError(400, 'Maximum booking amount is ₹100.');
+  } else if (booking_type === 'units') {
+    if (val < 1.5) throw createError(400, 'Minimum booking is 1.5 kWh.');
+    if (val > 10) throw createError(400, 'Maximum booking is 10 kWh.');
+  } else if (booking_type === 'duration') {
+    if (val < 1.5) throw createError(400, 'Minimum booking duration is 1.5 hours.');
+    if (val > 12) throw createError(400, 'Maximum booking duration is 12 hours.');
+  }
+
   // Prevent multiple active or booked sessions in the same room
   const existingSession = await db.query(
     `SELECT session_id FROM sessions WHERE r_id = $1 AND status IN ('active', 'booked')`,
@@ -1260,7 +1293,7 @@ const bookSession = async ({ u_id, r_id, booking_type, booking_value }) => {
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
        VALUES ($1, $2, $3, 'consumption', $4)`,
-      [wallet_id, session_id, block_amount, 'AC Booking Hold']
+      [wallet_id, session_id, block_amount, `AC Booking Hold for Session #${session_id}`]
     );
 
     // 4. Add creator as a participant automatically
@@ -1333,8 +1366,8 @@ const cancelSession = async ({ u_id, session_id }) => {
       );
       await client.query(
         `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
-         VALUES ($1, $2, $3, 'refund', 'AC Booking Hold Cancelled')`,
-        [wallet_id, session_id, amount]
+         VALUES ($1, $2, $3, 'refund', $4)`,
+        [wallet_id, session_id, amount, `Session #${session_id} Booking Hold Cancelled`]
       );
     }
     await client.query('COMMIT');
@@ -1456,7 +1489,7 @@ const syncSession = async ({ u_id, session_id, total_units }) => {
         await client.query(
           `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
            VALUES ($1, $2, $3, 'refund', $4)`,
-          [creatorWalletId, session_id, creatorRefund, 'AC Session Refund (Unused + Co-pay)']
+          [creatorWalletId, session_id, creatorRefund, `AC Session #${session_id} Refund (Unused + Co-pay)`]
         );
       }
     }
