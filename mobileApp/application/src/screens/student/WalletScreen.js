@@ -233,7 +233,7 @@ const WalletScreen = () => {
       const match = displayDesc.match(/(#\d+)/);
       if (match) displayDesc = match[1];
     } else if (!displayDesc) {
-      displayDesc = isCredit ? 'Wallet Top-Up' : 'AC Session';
+      displayDesc = t.type === 'refund' ? 'Refund' : (isCredit ? 'Wallet Top-Up' : 'AC Session');
     }
 
     return (
@@ -300,7 +300,7 @@ const WalletScreen = () => {
             
             <Text style={{ color: colors.textSecondary, marginTop: 16, marginBottom: 8, fontSize: 13, fontWeight: '600' }}>Transaction Type</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['all', 'consumption', 'recharge'].map(t => (
+              {['all', 'consumption', 'recharge', 'refund'].map(t => (
                 <TouchableOpacity 
                   key={t}
                   style={[styles.badge, filterType === t ? { backgroundColor: colors.purple } : { backgroundColor: 'rgba(255,255,255,0.05)' }]}

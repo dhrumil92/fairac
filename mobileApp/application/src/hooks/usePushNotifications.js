@@ -23,12 +23,12 @@ async function registerCategories() {
     {
       identifier: 'accept_session',
       buttonTitle: '✅ Accept',
-      options: { opensAppToForeground: false }, // Acts silently in background
+      options: { opensAppToForeground: true }, // Must be true for killed state on Android
     },
     {
       identifier: 'reject_session',
       buttonTitle: '❌ Reject',
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
   ]);
 
@@ -36,25 +36,36 @@ async function registerCategories() {
     {
       identifier: 'approve_leave',
       buttonTitle: '✅ Approve',
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
     },
     {
       identifier: 'reject_leave',
       buttonTitle: '❌ Reject',
-      options: { opensAppToForeground: false },
+      options: { opensAppToForeground: true },
+    },
+  ]);
+
+  await Notifications.setNotificationCategoryAsync('ROOM_INVITE', [
+    {
+      identifier: 'accept_room',
+      buttonTitle: '✅ Accept',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: 'reject_room',
+      buttonTitle: '❌ Decline',
+      options: { opensAppToForeground: true },
     },
   ]);
 }
 
 // ─── Handle a button tap from notification (background OR foreground) ─────────
-async function handleNotificationAction(response) {
+export async function handleNotificationAction(response, navigationRef) {
   const actionId = response.actionIdentifier;
   const data = response.notification.request.content.data;
 
-  if (!data?.session_id) return;
-
   try {
-    if (actionId === 'accept_session') {
+    if (actionId === 'accept_session' && data?.session_id) {
       await api.post('/sessions/participants/accept', { session_id: data.session_id });
       Alert.alert('✅ Joined!', 'You have joined the AC session. Your share will be tracked from now.');
     } else if (actionId === 'reject_session') {
@@ -72,6 +83,25 @@ async function handleNotificationAction(response) {
         leaving_u_id: data.leaving_u_id,
       });
       Alert.alert('❌ Rejected', 'Leave request rejected. They remain in the session.');
+    } else if (actionId === 'accept_room' && data?.invitation_id) {
+      await api.post('/rooms/invite/accept', { invitation_id: data.invitation_id });
+      Alert.alert('✅ Joined!', 'You are now a member of the room.');
+    } else if (actionId === 'reject_room' && data?.invitation_id) {
+      await api.post('/rooms/invite/reject', { invitation_id: data.invitation_id });
+      Alert.alert('Declined', 'Room invitation declined.');
+    } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      // User tapped the notification itself (not a button)
+      const type = data?.type;
+      const sessionTypes = [
+        'SESSION_STARTED', 'SESSION_INVITE', 'LEAVE_REQUEST', 'LEAVE_APPROVED',
+        'LEAVE_REJECTED', 'INVITE_ACCEPTED', 'INVITE_REJECTED',
+        'SESSION_INVITE_REMINDER', 'LEAVE_REMINDER'
+      ];
+      if (sessionTypes.includes(type)) {
+        navigationRef?.current?.navigate('Main', { screen: 'Session' });
+      } else if (type === 'ROOM_INVITE') {
+        navigationRef?.current?.navigate('MyRoom');
+      }
     }
   } catch (err) {
     console.error('Notification action error:', err);
@@ -81,7 +111,7 @@ async function handleNotificationAction(response) {
 }
 
 // ─── Main Hook ────────────────────────────────────────────────────────────────
-export default function usePushNotifications() {
+export default function usePushNotifications(navigationRef) {
   const { user, token } = useAuth();
   const [expoPushToken, setExpoPushToken] = useState('');
   const [notification, setNotification] = useState(false);
@@ -110,7 +140,7 @@ export default function usePushNotifications() {
     // 4. Listen for user tapping a notification button (the magic!)
     //    This fires both in foreground AND background (when app is open in background)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      handleNotificationAction(response);
+      handleNotificationAction(response, navigationRef);
     });
 
     return () => {

@@ -230,7 +230,31 @@ const startSession = async ({
 
     await client.query('COMMIT');
 
-    return await getSessionWithParticipants(session.session_id);
+    const fullSession = await getSessionWithParticipants(session.session_id);
+
+    // Notify all room members that a session started
+    try {
+      const roomMembers = await db.query(
+        `SELECT u_id FROM room_members WHERE r_id = $1 AND u_id != $2 AND left_at IS NULL`,
+        [r_id, u_id]
+      );
+      if (roomMembers.rows.length > 0) {
+        const starterName = fullSession.creator_name || 'A roommate';
+        const roomNo = fullSession.room_no || '';
+        for (const member of roomMembers.rows) {
+          await sendPushNotification(
+            member.u_id,
+            '❄️ AC Session Started',
+            `${starterName} started an AC session in Room ${roomNo}.`,
+            { type: 'SESSION_STARTED', session_id: session.session_id }
+          );
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to send session start notifications:', notifErr);
+    }
+
+    return fullSession;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -467,6 +491,7 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
     `SELECT status FROM session_participants WHERE session_id = $1 AND u_id = $2`,
     [session_id, invitee_id]
   );
+  let msg = 'Participant invited successfully.';
   if (existing.rows.length > 0) {
     const status = existing.rows[0].status;
     if (status === 'rejected' || status === 'left') {
@@ -474,11 +499,17 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
         `UPDATE session_participants SET status = 'invited', leave_status = 'none', left_at = NULL WHERE session_id = $1 AND u_id = $2`,
         [session_id, invitee_id]
       );
-      return { message: 'Participant re-invited successfully.' };
+      msg = 'Participant re-invited successfully.';
+    } else {
+      throw createError(
+        409,
+        `User is already a participant with status: ${status}.`
+      );
     }
-    throw createError(
-      409,
-      `User is already a participant with status: ${status}.`
+  } else {
+    await db.query(
+      `INSERT INTO session_participants (session_id, u_id, status) VALUES ($1, $2, 'invited')`,
+      [session_id, invitee_id]
     );
   }
 
@@ -492,14 +523,46 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
   const inviterName = inviterData.rows[0]?.name || 'Your roommate';
   const roomData = await db.query('SELECT room_no FROM rooms WHERE r_id = $1', [session.r_id]);
   const roomNo = roomData.rows[0]?.room_no || '';
+  
   await sendPushNotification(
     invitee_id,
     '⚡ Session Invitation',
-    `${inviterName} invited you to join the AC session in Room ${roomNo}. Your share will be deducted from your wallet.`,
+    `${inviterName} invited you to join the AC session in Room ${roomNo}.`,
     { type: 'SESSION_INVITE', categoryId: 'SESSION_INVITE', session_id: session_id }
   );
 
-  return { message: 'Participant invited successfully.' };
+  // 4-Minute Dual Reminder
+  setTimeout(async () => {
+    try {
+      const check = await db.query(
+        `SELECT status FROM session_participants WHERE session_id = $1 AND u_id = $2`,
+        [session_id, invitee_id]
+      );
+      if (check.rows.length > 0 && check.rows[0].status === 'invited') {
+        const inviteeData = await db.query('SELECT name FROM users WHERE u_id = $1', [invitee_id]);
+        const inviteeName = inviteeData.rows[0]?.name || 'Your roommate';
+
+        // 1. Notify the inviter
+        await sendPushNotification(
+          u_id, 
+          '⏰ No Response Yet',
+          `${inviteeName} has not responded to your session invite yet.`,
+          { type: 'SESSION_INVITE_REMINDER', session_id }
+        );
+        // 2. Re-send actionable notification to invitee
+        await sendPushNotification(
+          invitee_id,
+          '⏰ Session Invitation Pending',
+          `${inviterName} is still waiting for you to join the AC session.`,
+          { type: 'SESSION_INVITE', categoryId: 'SESSION_INVITE', session_id: session_id }
+        );
+      }
+    } catch (timerErr) {
+      console.error('Invite dual reminder timer error:', timerErr);
+    }
+  }, 4 * 60 * 1000); // 4 minutes
+
+  return { message: msg };
 };
 
 // =============================================================================
@@ -538,6 +601,26 @@ const acceptSessionInvite = async ({ u_id, session_id }) => {
     [session_id, u_id]
   );
 
+  // Notify the inviter (session creator)
+  try {
+    const inviterResult = await db.query(
+      `SELECT created_by FROM sessions WHERE session_id = $1`, [session_id]
+    );
+    const inviterUserId = inviterResult.rows[0]?.created_by;
+    if (inviterUserId && inviterUserId !== u_id) {
+      const acceptorData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
+      const acceptorName = acceptorData.rows[0]?.name || 'A roommate';
+      await sendPushNotification(
+        inviterUserId,
+        '✅ Invite Accepted',
+        `${acceptorName} has accepted your invite and is now an active session member.`,
+        { type: 'INVITE_ACCEPTED', session_id }
+      );
+    }
+  } catch (notifErr) {
+    console.error('Accept invite notification error:', notifErr);
+  }
+
   return { message: 'You have joined the session. AC costs will be tracked from now.' };
 };
 
@@ -561,6 +644,26 @@ const rejectSessionInvite = async ({ u_id, session_id }) => {
      WHERE session_id = $1 AND u_id = $2`,
     [session_id, u_id]
   );
+
+  // Notify the inviter (session creator)
+  try {
+    const inviterResult = await db.query(
+      `SELECT created_by FROM sessions WHERE session_id = $1`, [session_id]
+    );
+    const inviterUserId = inviterResult.rows[0]?.created_by;
+    if (inviterUserId && inviterUserId !== u_id) {
+      const rejectorData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
+      const rejectorName = rejectorData.rows[0]?.name || 'A roommate';
+      await sendPushNotification(
+        inviterUserId,
+        '❌ Invite Rejected',
+        `${rejectorName} has declined your session invite.`,
+        { type: 'INVITE_REJECTED', session_id }
+      );
+    }
+  } catch (notifErr) {
+    console.error('Reject invite notification error:', notifErr);
+  }
 
   return { message: 'Session invitation rejected. You will not be charged.' };
 };
@@ -672,6 +775,32 @@ const leaveSession = async ({ u_id, session_id }) => {
       { type: 'LEAVE_REQUEST', categoryId: 'LEAVE_REQUEST', session_id: session_id, leaving_u_id: u_id }
     );
   }
+
+  // 4-Minute Dual Reminder
+  setTimeout(async () => {
+    try {
+      const check = await db.query(
+        `SELECT leave_status FROM session_participants WHERE session_id = $1 AND u_id = $2`,
+        [session_id, u_id]
+      );
+      if (check.rows.length > 0 && check.rows[0].leave_status === 'pending') {
+        // 1. Re-notify the leaver
+        await sendPushNotification(u_id, '⏰ Still Waiting', 
+          'No one has approved your leave request yet.', 
+          { type: 'LEAVE_REMINDER', session_id }
+        );
+        // 2. Re-notify all active participants
+        for (const p of otherParticipants.rows) {
+          await sendPushNotification(p.u_id, '⏰ Leave Request Pending',
+            `${leaverName} still wants to leave. Please respond.`,
+            { type: 'LEAVE_REMINDER', categoryId: 'LEAVE_REQUEST', session_id, leaving_u_id: u_id }
+          );
+        }
+      }
+    } catch (timerErr) {
+      console.error('Leave dual reminder timer error:', timerErr);
+    }
+  }, 4 * 60 * 1000); // 4 minutes
 
   return { message: 'Leave request sent. Awaiting approval from a roommate.' };
 };
@@ -1326,7 +1455,7 @@ const syncSession = async ({ u_id, session_id, total_units }) => {
         );
         await client.query(
           `INSERT INTO wallet_transactions (wallet_id, session_id, amount, type, description)
-           VALUES ($1, $2, $3, 'recharge', $4)`,
+           VALUES ($1, $2, $3, 'refund', $4)`,
           [creatorWalletId, session_id, creatorRefund, 'AC Session Refund (Unused + Co-pay)']
         );
       }

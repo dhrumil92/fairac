@@ -36,8 +36,10 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
       title: title,
       body: body,
       data: data,
+      priority: 'high',
+      channelId: 'default',
       // categoryId links this notification to a set of action buttons registered on the device
-      ...(data.categoryId ? { categoryIdentifier: data.categoryId } : {}),
+      ...(data.categoryId ? { categoryId: data.categoryId } : {}),
     }];
 
     // 4. Send the notification

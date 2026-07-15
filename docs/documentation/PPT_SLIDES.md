@@ -1,109 +1,150 @@
-# FairAC: Viva Presentation Slides
+# FairAC: Product Pitch Slides
 
-*Below is the exact outline you should use to build your PowerPoint Presentation. Keep the text on the slides minimal, and use diagrams as much as possible.*
+*A non-technical product pitch for investors, hostel owners, or college examiners who just know how to use a smartphone. No jargon. Pure storytelling.*
 
 ---
 
 ## Slide 1: Title Slide
-- **Title:** FairAC: Decentralized AC Billing Ecosystem
-- **Subtitle:** Fair split-billing using IoT, BLE, and React Native
-- **Your Name & Details**
+- **Title:** FairAC
+- **Tagline:** *Stop paying for your roommate's electricity.*
+- **Your Name, College, Internship Year**
 
-## Slide 2: The Problem
-- **Current Scenario:** Hostels split room electricity bills equally among roommates.
-- **The Issue:** If Roommate A runs the AC all day, Roommate B (who was in class) is forced to pay for it.
-- **Result:** Financial disputes, lack of transparency, and energy wastage.
+---
 
-## Slide 3: The Solution (FairAC)
-- A **Smart AC Controller** installed on the AC unit.
-- A **Mobile App** that acts as a digital wallet and remote control.
-- **Pay-as-you-go:** You only pay for the exact kWh you consume. If a roommate joins you, the cost is split dynamically in real-time.
+## Slide 2: The Story (Hook the Audience)
+**Picture this:**
+- You leave for college at 8 AM. Your roommate stays back and runs the AC on full blast all day.
+- At the end of the month, the hostel owner hands you a 1,200 electricity bill... and asks you to split it equally.
+- You paid 600 for electricity you never used.
+- **This happens in every hostel, every PG, every month. Across crores of students in India.**
 
-## Slide 4: System Architecture (The "Wow" Slide)
-> [!TIP]
-> Copy the code block below into [Mermaid Live Editor](https://mermaid.live/) to generate a high-quality image of your architecture, and paste that image onto this slide!
+---
 
-```mermaid
-graph TD
-    subgraph Mobile App (React Native)
-        UI[Student Dashboard]
-        BLE_Client[BLE Module]
-        FCM_Receiver[Push Notifications]
-    end
+## Slide 3: How It Works Today (The Broken System)
+**Visual: Show a sub-meter on a wall, a notebook with readings, and two students arguing**
 
-    subgraph IoT Hardware (ESP32)
-        BLE_Server[BLE Server]
-        Core[Logic & NVS Flash]
-        PZEM[PZEM-004T Meter]
-        Relay[5V AC Relay]
-    end
+| Step | What Happens |
+|---|---|
+| Start of Month | Owner notes the meter reading |
+| End of Month | Owner notes the new reading |
+| Calculation | Difference in units x price per unit = Total Bill |
+| Split | **Divided equally among ALL roommates. No exceptions.** |
 
-    subgraph Cloud Backend (Node.js)
-        API[Express API]
-        DB[(PostgreSQL)]
-        FCM_Server[Firebase Cloud Messaging]
-    end
+**The Problem:** No one tracks *who* used *how much*. The honest student always loses.
 
-    UI <--> |HTTP/REST| API
-    API <--> DB
-    API --> |Trigger| FCM_Server
-    FCM_Server --> |Alert| FCM_Receiver
+---
 
-    UI <--> |Bluetooth Low Energy| BLE_Client
-    BLE_Client <--> |Offline Commands| BLE_Server
-    
-    BLE_Server <--> Core
-    Core <--> |I2C/Serial| PZEM
-    Core --> |GPIO| Relay
-```
+## Slide 4: Introducing FairAC
+**"What if the AC only charged you for the exact time YOU were in the room?"**
 
-## Slide 5: Why Offline-First (BLE)?
-- **Challenge:** University Wi-Fi is notoriously unstable and requires complex web portal logins. IoT devices struggle to stay connected.
-- **Solution:** We used Bluetooth Low Energy (BLE).
-- **Result:** The ESP32 is completely offline. The Mobile App acts as a "Bridge" passing the billing data from the offline hardware to the Cloud Backend.
+FairAC is a **two-part system**:
+1. A **Smart Box** (installed near the AC switchboard) - measures the exact electricity the AC uses, to the last watt.
+2. A **Mobile App** (on your phone) - your digital wallet & remote control. Book the AC, track your cost live, and split the bill with your roommates in real-time.
 
-## Slide 6: Hardware Fault Tolerance
-- **Power Cuts:** What happens if the power goes out mid-session?
-- **Our Engineering:** The ESP32 writes the consumed energy (`session_kwh`) into Non-Volatile Storage (Flash Memory) every 60 seconds.
-- **Recovery:** When power is restored, the ESP32 instantly resumes the session and countdown autonomously.
+**No more equal splits. No more arguments. Just pay for exactly what you use.**
 
-## Slide 7: Database & Security (Transactions)
-- **Challenge:** What if two roommates try to join a session at the exact same millisecond? Or try to leave the room to avoid paying?
-- **Our Engineering:** The backend uses **PostgreSQL ACID Transactions**.
-- **Result:** Money is "held" (blocked) safely. We use `SELECT FOR UPDATE` locks to ensure mathematically perfect wallet balances without race conditions.
+---
 
-## Slide 8: Push Notifications & Collaboration
-- When a student turns on the AC, the backend automatically triggers **Firebase Cloud Messaging (FCM)**.
-- Roommates receive a push notification instantly.
-- They can tap "Accept" on the notification to join the session and split the bill dynamically based on the exact second they joined.
+## Slide 5: The App - Your Pocket Wallet
+**Show app screenshots here**
 
-## Slide 9: Conclusion & Future Scope
-- **Conclusion:** Built a fully operational, fault-tolerant, fair billing ecosystem.
-- **Future Scope:** 
-  1. **Version 2.0 Hardware:** Moving from modules to a custom integrated PCB holding the ESP32, SMPS, and dual PZEM/Relays to govern TWO rooms simultaneously from one controller, drastically reducing manufacturing costs.
-  2. Actionable push notification buttons (Accept/Reject session without opening app).
-  3. Web-based Admin Dashboard & iOS App.
+Three things a student can do in 3 taps:
+- Recharge Wallet - like recharging a Paytm wallet
+- Book the AC - choose how long, or how much you want to spend
+- End Session - the AC turns off, and you only paid for what you used
 
-## Slide 10: Thank You / Q&A
+**No Wi-Fi needed. The app talks to the Smart Box directly via Bluetooth.**
+
+---
+
+## Slide 6: The Magic - Real-Time Bill Splitting
+**This is the feature that makes FairAC unique.**
+
+Scenario:
+- Student A books the AC at 10 PM.
+- At 11 PM, Student B comes back to the room and wants to join.
+- Student B taps **"Join Session"** on their app.
+- **Instantly**, the bill splits between both students, from that exact second.
+
+When Student A leaves at midnight, they stop paying. Student B continues alone.
+**Every rupee goes to the right person. Automatically.**
+
+---
+
+## Slide 7: What Happens if the Power Cuts? (Safety & Trust)
+**The Smart Box never forgets.**
+
+- If the electricity goes out mid-session, the Smart Box saves the last reading internally - like a car trip meter that does not reset.
+- When power comes back, it continues tracking from exactly where it left off.
+- **Your money is safe, even during a blackout.**
+
+---
+
+## Slide 8: Roles - Who Sees What?
+**Visual: Three-column table or 3 phone mockups**
+
+| Student | Admin (Hostel Owner) | Super Admin |
+|---|---|---|
+| Recharge wallet | View all rooms live | Cross-hostel revenue |
+| Book/End AC | Force-stop any session | Authorize refunds |
+| View bill history | Invite students to rooms | Full financial overview |
+
+**Everyone has the right amount of power. No one can cheat the system.**
+
+---
+
+## Slide 9: Why FairAC Beats the Current System
+| Feature | Old Sub-Meter System | FairAC |
+|---|---|---|
+| Tracking | Monthly (end of month) | Live, second-by-second |
+| Billing | Equal split (unfair) | Proportional (fair) |
+| Disputes | Monthly arguments | Zero disputes |
+| Payment | Cash to owner | Digital wallet |
+| Transparency | None | Full history in app |
+| Access Control | None | App-protected Smart Box |
+
+---
+
+## Slide 10: What is Next - Version 2.0
+**Scaling to the entire hostel**
+
+- **One Smart Box, Two Rooms:** The next version controls two rooms from a single device, cutting installation cost by 50%.
+- **Push Notification Split Invite:** Roommate gets a notification. One tap - they are in, bill splits automatically. No need to open the app.
+- **Student-to-Student Bill Request:** Request a roommate to join and split, directly from the notification.
+
+---
+
+## Slide 11: Thank You / Q&A
+- **"FairAC: Because fairness should not be a privilege."**
+- Live Demo Available
 - Questions?
 
 ---
 
-## 🤖 AI Presentation Maker Prompt
+## AI Presentation Maker Prompt
 
-*Copy and paste the exact text below into an AI Presentation Maker (like Gamma.app or Tome.app) to instantly generate your slide deck!*
+*Copy and paste this directly into Gamma.app or Tome.app to instantly generate your professional slide deck!*
 
-**Prompt for AI:**
-> "Please create a highly professional, 10-slide academic presentation for a computer science summer internship viva. The project is called 'FairAC: A Decentralized IoT and Mobile Ecosystem for Fair Air Conditioning Billing'. Use a modern, dark-mode tech aesthetic with clean typography. 
-> 
-> Here is the exact slide-by-slide outline to follow:
-> Slide 1: Title (FairAC: Decentralized AC Billing Ecosystem. Fair split-billing using IoT, BLE, and React Native). 
-> Slide 2: The Problem (Hostels split bills equally, leading to unfairness and disputes when usage differs). 
-> Slide 3: The Solution (Smart AC Controller + Mobile App Digital Wallet + Pay-as-you-go split billing). 
-> Slide 4: System Architecture (Leave a blank space for an image I will upload later. Mention: Mobile App, Cloud Backend, IoT ESP32). 
-> Slide 5: Why Offline-First? (University Wi-Fi is unstable. Used Bluetooth Low Energy so the hardware works 100% offline). 
-> Slide 6: Hardware Fault Tolerance (ESP32 saves energy data to Flash NVS memory every 60s. Auto-recovers from power cuts). 
-> Slide 7: Database Transactions (Used PostgreSQL ACID transactions and row-level locks to prevent financial race conditions). 
-> Slide 8: Push Notifications (Firebase Cloud Messaging instantly alerts roommates to split the bill dynamically). 
-> Slide 9: Conclusion & Future Scope (Future: Version 2.0 custom PCB to govern two rooms from one ESP32 to cut manufacturing costs). 
-> Slide 10: Thank You / Q&A."
+Create a 11-slide product pitch presentation called "FairAC - Stop Paying for Your Roommate's Electricity". The audience is non-technical: hostel owners, investors, and college examiners who only know how to use WhatsApp and a camera. Use zero technical terms. The tone should be warm, confident, and story-driven like a Shark Tank pitch. Use a modern, clean design with a dark teal and white color palette.
+
+Slide 1 - Title: "FairAC" in large bold text. Tagline: "Stop paying for your roommate's electricity." Clean, minimal.
+
+Slide 2 - The Story (Hook): Start with a relatable story. A student leaves for college at 8 AM. The roommate stays home and runs the AC all day. At the end of the month, the electricity bill is split equally. The student who was in class all day still pays 600 rupees for electricity they never used. End with: "This happens in every hostel, every PG, every month. Across crores of students in India."
+
+Slide 3 - The Broken System: Show how the current sub-meter system works. The hostel owner reads the meter at the start and end of the month, calculates the total units consumed, multiplies by the rate, and divides equally among roommates regardless of who actually used the AC. Visually, show a simple 4-step table.
+
+Slide 4 - Introducing FairAC: "What if the AC only charged you for the exact time YOU were in the room?" Introduce two components: (1) A Smart Box installed near the AC switchboard that measures electricity to the last watt. (2) A Mobile App - your digital wallet and remote control.
+
+Slide 5 - The App: Show the 3 core actions: Recharge Wallet (like Paytm), Book the AC (choose duration or budget), End Session (pay only for what you used). Add: "No Wi-Fi needed. The app talks to the Smart Box directly via Bluetooth."
+
+Slide 6 - Real-Time Bill Splitting (The USP): Tell the story: Student A starts the AC at 10 PM. Student B joins at 11 PM. The bill instantly splits from that second. Student A leaves at midnight - they stop paying. Student B continues alone. End with: "Every rupee goes to the right person. Automatically."
+
+Slide 7 - Safety and Trust: "The Smart Box never forgets." If the power cuts mid-session, the box saves the reading internally and resumes from exactly where it left off. Your money is safe, even during a blackout.
+
+Slide 8 - Three Roles: Show a 3-column table. Student: Recharge, Book, View history. Admin (Hostel Owner): View all rooms live, force-stop sessions. Super Admin: Cross-hostel revenue, authorize refunds.
+
+Slide 9 - FairAC vs Old System: Side-by-side comparison table. Tracking: Monthly vs Live. Billing: Equal (unfair) vs Proportional (fair). Disputes: Monthly arguments vs Zero. Payment: Cash vs Digital. Transparency: None vs Full history in app.
+
+Slide 10 - Version 2.0 Future: One Smart Box controlling two rooms (50% cost cut). Push notification invites to split bill without opening the app. Student-to-student bill request feature.
+
+Slide 11 - Thank You: Large text: "FairAC: Because fairness should not be a privilege." Note that a live demo is available. Space for Q&A.

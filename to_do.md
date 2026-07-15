@@ -26,3 +26,9 @@ jemke session invite no notification hoy to session screen open thavi joiye na k
 
 
 iso app banavvani che
+
+
+add compressor cooling down time for 5 minutes
+dont allow booking below 20rs/1.5kwh/1.5hour
+dont' allow booking above 12h or 24h/ 10kwh/ 100rs
+add session id example: #155 in each transaction record

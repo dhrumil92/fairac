@@ -3,8 +3,9 @@
 // Root Navigation — controls which screens to show based on auth state
 // =============================================================================
 
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../context/AuthContext';
 import { View, ActivityIndicator } from 'react-native';
 import { colors } from '../theme/colors';
@@ -17,13 +18,14 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import MainTabNavigator from './MainTabNavigator';
 import RoomScreen from '../screens/student/RoomScreen';
 import ChangePasswordScreen from '../screens/student/ChangePasswordScreen';
-import usePushNotifications from '../hooks/usePushNotifications';
+import usePushNotifications, { handleNotificationAction } from '../hooks/usePushNotifications';
 
 const Stack = createNativeStackNavigator();
+export const navigationRef = createNavigationContainerRef();
 
 const AppNavigator = () => {
   const { user, isLoading } = useAuth();
-  usePushNotifications(); // Initialize push notification listeners and tokens
+  usePushNotifications(navigationRef); // Initialize push notification listeners and tokens
 
   // Show spinner while checking saved login from AsyncStorage
   if (isLoading) {
@@ -35,7 +37,16 @@ const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        Notifications.getLastNotificationResponseAsync().then(response => {
+          if (response) {
+            handleNotificationAction(response, navigationRef);
+          }
+        });
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           // User is logged in → show main app with bottom tabs

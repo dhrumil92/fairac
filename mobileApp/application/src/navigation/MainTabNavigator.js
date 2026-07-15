@@ -6,6 +6,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 
 // Screens
@@ -17,6 +18,10 @@ import ProfileScreen   from '../screens/student/ProfileScreen';
 const Tab = createBottomTabNavigator();
 
 const MainTabNavigator = () => {
+  const insets = useSafeAreaInsets();
+  // On devices with a gesture bar or soft nav buttons, insets.bottom > 0
+  const tabBarHeight = 65 + insets.bottom;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -25,9 +30,9 @@ const MainTabNavigator = () => {
           backgroundColor: colors.tabBarBg,
           borderTopColor:  colors.border,
           borderTopWidth:  1,
-          paddingBottom:   8,
+          paddingBottom:   8 + insets.bottom,
           paddingTop:      8,
-          height:          65,
+          height:          tabBarHeight,
         },
         tabBarActiveTintColor:   colors.tabActive,
         tabBarInactiveTintColor: colors.tabInactive,
@@ -43,7 +48,8 @@ const MainTabNavigator = () => {
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={focused ? colors.tabActive : colors.tabInactive} />,
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarIcon: ({ focused }) => <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={focused ? colors.tabActive : 'rgba(168, 85, 247, 0.5)'} />,
         }}
       />
       <Tab.Screen

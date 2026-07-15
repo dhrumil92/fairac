@@ -291,12 +291,13 @@ const inviteRoommate = async ({ inviter_u_id, room_id, identifier }) => {
   const roomNo = roomData.rows[0].room_no;
   const inviterData = await db.query('SELECT name FROM users WHERE u_id = $1', [inviter_u_id]);
   const inviterName = inviterData.rows[0].name;
+  const invitationId = inviteResult.rows[0].invitation_id;
   
   await sendPushNotification(
     invitee.u_id,
-    'Room Invitation',
-    `${inviterName} has invited you to join Room ${roomNo}!`,
-    { type: 'INVITE_RECEIVED' }
+    '🏠 Room Invitation',
+    `${inviterName} has invited you to join Room ${roomNo}.`,
+    { type: 'ROOM_INVITE', categoryId: 'ROOM_INVITE', invitation_id: invitationId }
   );
 
   return {
