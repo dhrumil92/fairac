@@ -103,6 +103,11 @@ export async function handleNotificationAction(response, navigationRef) {
         navigationRef?.current?.navigate('MyRoom');
       }
     }
+    
+    // Clean up: dismiss the notification from the system tray
+    if (actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      await Notifications.dismissNotificationAsync(response.notification.request.identifier);
+    }
   } catch (err) {
     console.error('Notification action error:', err);
     const msg = err.response?.data?.message || 'Action failed. Please open the app.';

@@ -11,7 +11,12 @@ const pool = new Pool({
 });
 
 async function run() {
-  const hash = await bcrypt.hash('Admin@1234', 10);
+  const rawPassword = process.env.ADMIN_PASSWORD;
+  if (!rawPassword) {
+    console.error('❌ ADMIN_PASSWORD env variable is required. Aborting.');
+    process.exit(1);
+  }
+  const hash = await bcrypt.hash(rawPassword, 10);
   const result = await pool.query(
     'UPDATE users SET password_hash = $1 WHERE u_id = 1 RETURNING u_id, name, email, role, hostel_id',
     [hash]

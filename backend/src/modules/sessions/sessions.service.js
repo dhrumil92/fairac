@@ -1007,17 +1007,13 @@ const endSession = async ({ u_id, role, session_id, total_units }) => {
   let finalTotalUnits = parseFloat(total_units);
   let totalCost = finalTotalUnits * rate;
 
-  // ── SPAM PREVENTION & GRACE PERIOD ───────────────────────────────────────
-  if (sessionDurationMs <= 60000) {
-    // Under 60 seconds: Grace Period (Full refund for mistakes/hardware faults)
-    totalCost = 0;
-    finalTotalUnits = 0;
-  } else {
-    // Over 60 seconds: Enforce minimum connection fee of ₹0.10
-    if (rate > 0 && totalCost < 0.10) {
-      totalCost = 0.10;
-      finalTotalUnits = 0.10 / rate;
-    }
+  // ── SPAM PREVENTION & MINIMUM CHARGE ────────────────────────────────────
+  // Enforce a strict minimum charge of 0.100 kWh (100 watts) to prevent 
+  // users from toggling the AC on and off repeatedly without paying.
+  const MINIMUM_UNITS = 0.100;
+  if (finalTotalUnits < MINIMUM_UNITS) {
+    finalTotalUnits = MINIMUM_UNITS;
+    totalCost = finalTotalUnits * rate;
   }
 
   // ── Grace Period Configurations ─────────────────────────────────────────

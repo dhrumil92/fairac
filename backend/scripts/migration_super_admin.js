@@ -8,7 +8,14 @@ async function run() {
     
     // Hash password
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
-    const hashedPassword = await bcrypt.hash('$uper@dmin_92', saltRounds);
+  // Use SUPER_ADMIN_PASSWORD from environment variable — NEVER hardcode passwords in source code.
+  // Run: SUPER_ADMIN_PASSWORD=YourStrongPass node scripts/migration_super_admin.js
+  const rawPassword = process.env.SUPER_ADMIN_PASSWORD;
+  if (!rawPassword) {
+    console.error('❌ SUPER_ADMIN_PASSWORD env variable is required. Aborting.');
+    process.exit(1);
+  }
+  const hashedPassword = await bcrypt.hash(rawPassword, saltRounds);
 
     // Check if user exists
     const check = await db.query(`SELECT * FROM users WHERE email = $1`, ['super.admin@fairac.com']);

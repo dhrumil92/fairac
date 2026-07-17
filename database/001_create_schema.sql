@@ -248,15 +248,15 @@ CREATE TABLE sessions (
     target_value    DECIMAL(10,2)   NULL,   -- e.g. 2.5 hours, 5 kWh, ₹100
     total_units     DECIMAL(10,3)   NULL,   -- kWh used (entered on session end)
     rate_per_unit   DECIMAL(6,2)    NOT NULL DEFAULT 8.00,  -- ₹/kWh snapshot
-    status          VARCHAR(20)     NOT NULL DEFAULT 'pending',
+    status          VARCHAR(20)     NOT NULL DEFAULT 'booked',
     start_time      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     end_time        TIMESTAMPTZ     NULL,   -- NULL while session is active
 
     -- Constraints
     CONSTRAINT fk_sess_room         FOREIGN KEY (r_id)       REFERENCES rooms (r_id) ON DELETE RESTRICT,
     CONSTRAINT fk_sess_created_by   FOREIGN KEY (created_by) REFERENCES users (u_id) ON DELETE RESTRICT,
-    CONSTRAINT chk_sess_type        CHECK (session_type IN ('unlimited', 'duration', 'unit', 'budget')),
-    CONSTRAINT chk_sess_status      CHECK (status IN ('pending', 'active', 'completed', 'cancelled')),
+    CONSTRAINT chk_sess_type        CHECK (session_type IN ('unlimited', 'budget', 'unit', 'duration', 'units', 'amount')),
+    CONSTRAINT chk_sess_status      CHECK (status IN ('active', 'completed', 'cancelled', 'booked')),
     CONSTRAINT chk_sess_units       CHECK (total_units IS NULL OR total_units >= 0),
     CONSTRAINT chk_sess_rate        CHECK (rate_per_unit > 0),
     -- End time must be after start time (when set)
@@ -357,11 +357,10 @@ CREATE TABLE wallets (
 
     -- Constraints
     CONSTRAINT fk_wallet_user   FOREIGN KEY (u_id) REFERENCES users (u_id) ON DELETE CASCADE,
-    CONSTRAINT uq_wallet_user   UNIQUE (u_id),  -- Enforce 1:1
-    CONSTRAINT chk_wallet_balance CHECK (balance >= 0)  -- Cannot go negative (prevent overdraft)
+    CONSTRAINT uq_wallet_user   UNIQUE (u_id)  -- Enforce 1:1
 );
 
-COMMENT ON TABLE wallets IS '1:1 with users. Tracks prepaid AC balance. Must stay non-negative.';
+COMMENT ON TABLE wallets IS '1:1 with users. Tracks prepaid AC balance. Can go negative in certain scenarios.';
 COMMENT ON COLUMN wallets.balance IS 'Current available balance. Kept in sync with transaction sum.';
 COMMENT ON COLUMN wallets.total_recharged IS 'Lifetime total recharged by admin. Useful for reports.';
 COMMENT ON COLUMN wallets.total_spent IS 'Lifetime total consumed. Useful for reports.';
@@ -457,3 +456,41 @@ COMMENT ON COLUMN consumption_records.cost IS 'Cost in ₹ allocated to this use
 CREATE INDEX idx_cr_session ON consumption_records (session_id);
 CREATE INDEX idx_cr_user    ON consumption_records (u_id);
 CREATE INDEX idx_cr_date    ON consumption_records (recorded_at DESC);
+
+
+-- =============================================================================
+-- TABLE 11: devices
+-- =============================================================================
+CREATE TABLE devices (
+    device_id         VARCHAR(50)     PRIMARY KEY,
+    r_id              BIGINT          NULL,
+    status            VARCHAR(20)     DEFAULT 'offline',
+    uptime            INTEGER         DEFAULT 0,
+    last_heartbeat    TIMESTAMPTZ     DEFAULT NOW(),
+    created_at        TIMESTAMPTZ     DEFAULT NOW(),
+    mac_address       VARCHAR(50)     NULL,
+    current_power_w   DOUBLE PRECISION DEFAULT 0,
+    
+    CONSTRAINT fk_devices_room FOREIGN KEY (r_id) REFERENCES rooms (r_id) ON DELETE SET NULL
+);
+
+COMMENT ON TABLE devices IS 'IoT ESP32 hardware devices mapped to rooms.';
+
+
+-- =============================================================================
+-- TABLE 12: support_tickets
+-- =============================================================================
+CREATE TABLE support_tickets (
+    ticket_id         SERIAL          PRIMARY KEY,
+    u_id              BIGINT          NULL,
+    subject           VARCHAR(255)    NOT NULL,
+    message           TEXT            NOT NULL,
+    status            VARCHAR(20)     DEFAULT 'open',
+    created_at        TIMESTAMPTZ     DEFAULT CURRENT_TIMESTAMP,
+    seen_by_admin     BOOLEAN         DEFAULT false,
+    
+    CONSTRAINT support_tickets_status_check CHECK (status IN ('open', 'resolved')),
+    CONSTRAINT fk_support_tickets_user FOREIGN KEY (u_id) REFERENCES users (u_id) ON DELETE SET NULL
+);
+
+COMMENT ON TABLE support_tickets IS 'User support tickets and inquiries.';
