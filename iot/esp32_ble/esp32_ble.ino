@@ -63,6 +63,7 @@ float session_kwh = 0.0;      // Energy consumed THIS session (NVS: "session_kwh
 float total_kwh = 0.0;        // Lifetime total (NVS: "total_kwh")
 float max_kwh_limit = 0.0;    // 0 = no kWh limit (NVS: "max_kwh")
 long remaining_duration_sec = 0; // Countdown timer in seconds. 0 = no time limit (NVS: "remain_dur")
+unsigned long active_duration_sec = 0; // Tracks actual active time for proportional billing (NVS: "active_sec")
 long activeSessionId = -1;    // (NVS: "session_id")
 
 // --- Live Sensor Readings ---
@@ -147,10 +148,12 @@ class MyCallbacks: public BLECharacteristicCallbacks {
             preferences.putFloat("session_kwh", 0.0);
             preferences.putFloat("max_kwh", 0.0);
             preferences.putLong("remain_dur", 0);
+            preferences.putLong("active_sec", 0);
             preferences.putLong("session_id", -1);
             session_kwh = 0.0;
             max_kwh_limit = 0.0;
             remaining_duration_sec = 0;
+            active_duration_sec = 0;
             activeSessionId = -1;
             currentState = STANDBY;
           }
@@ -193,6 +196,7 @@ void setup() {
   session_kwh           = preferences.getFloat("session_kwh", 0.0);
   max_kwh_limit         = preferences.getFloat("max_kwh", 0.0);
   remaining_duration_sec = preferences.getLong("remain_dur", 0);
+  active_duration_sec    = preferences.getLong("active_sec", 0);
   activeSessionId       = preferences.getLong("session_id", -1);
   bool wasActive        = preferences.getBool("is_active", false);
   bool wasFinished      = preferences.getBool("is_finished", false);
@@ -303,17 +307,21 @@ void loop() {
     }
   }
 
-  // ── Duration Countdown (1 second tick) ───────────────────────────────────
-  if (currentState == SESSION_ACTIVE && remaining_duration_sec > 0) {
+  // ── 1 Second Tick (Duration Tracking) ────────────────────────────────────
+  if (currentState == SESSION_ACTIVE) {
     if (now - lastDurationTickTime >= 1000) {
       lastDurationTickTime = now;
-      remaining_duration_sec--;
+      active_duration_sec++;
 
-      // Auto-shutdown when timer reaches zero
-      if (remaining_duration_sec <= 0) {
-        remaining_duration_sec = 0;
-        Serial.println("[SYSTEM] Duration limit reached! Auto-shutting off AC.");
-        finishSession("DURATION_LIMIT");
+      if (remaining_duration_sec > 0) {
+        remaining_duration_sec--;
+
+        // Auto-shutdown when timer reaches zero
+        if (remaining_duration_sec <= 0) {
+          remaining_duration_sec = 0;
+          Serial.println("[SYSTEM] Duration limit reached! Auto-shutting off AC.");
+          finishSession("DURATION_LIMIT");
+        }
       }
     }
   }
@@ -369,12 +377,15 @@ void startSession(bool silent) {
   preferences.putLong("session_id", activeSessionId);
   preferences.putFloat("max_kwh", max_kwh_limit);
   preferences.putLong("remain_dur", remaining_duration_sec);
+  preferences.putLong("active_sec", active_duration_sec);
 
   if (!silent) {
     // New session: reset energy counter
     session_kwh = 0.0;
     current_power = 0.0;
+    active_duration_sec = 0;
     preferences.putFloat("session_kwh", 0.0);
+    preferences.putLong("active_sec", 0);
 
     // Visual/audio animation
     for (int i = 0; i < 3; i++) {
@@ -412,6 +423,7 @@ void finishSession(String reason) {
   preferences.putFloat("session_kwh", session_kwh);
   preferences.putFloat("total_kwh", total_kwh);
   preferences.putLong("remain_dur", 0);
+  preferences.putLong("active_sec", active_duration_sec);
 
   currentState = FINISHED;
   digitalWrite(PIN_LED_RED, HIGH); // Red = waiting for sync
@@ -489,6 +501,7 @@ void sendBleTelemetry() {
   doc["current"]         = (current_power > 0 && current_voltage > 0)
                             ? (current_power / current_voltage) : 0.0;
   doc["remain_sec"]      = remaining_duration_sec;
+  doc["active_sec"]      = active_duration_sec;
   doc["max_kwh"]         = max_kwh_limit;
 
   // Status field — mobile app uses this to trigger auto-sync
@@ -515,7 +528,8 @@ void saveToFlash() {
   preferences.putFloat("total_kwh", total_kwh);
   preferences.putFloat("session_kwh", session_kwh);
   preferences.putLong("remain_dur", remaining_duration_sec);
-  Serial.printf("[NVS] Saved: session=%.4f kWh, remain=%ld sec\n", session_kwh, remaining_duration_sec);
+  preferences.putLong("active_sec", active_duration_sec);
+  Serial.printf("[NVS] Saved: session=%.4f kWh, remain=%ld sec, active=%lu sec\n", session_kwh, remaining_duration_sec, active_duration_sec);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

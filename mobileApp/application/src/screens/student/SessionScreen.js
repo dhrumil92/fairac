@@ -301,7 +301,8 @@ const SessionScreen = () => {
         try {
           await api.post('/sessions/sync', {
             session_id: session_id,
-            total_units: 0
+            total_units: 0,
+            active_duration_sec: 0
           });
         } catch (_) { }
         throw new Error('Bluetooth disconnected during start. Your money has been refunded.');
@@ -351,7 +352,8 @@ const SessionScreen = () => {
           try {
             await api.post('/sessions/sync', {
               session_id: sId,
-              total_units: finalKwh
+              total_units: finalKwh,
+              active_duration_sec: telemetryData.active_sec || 0
             });
             // Tell the ESP32 that the server sync was successful — safe to go to STANDBY
             try { await sendCommand({ cmd: 'SYNC_ACK' }); } catch (_) { }
@@ -454,7 +456,8 @@ const SessionScreen = () => {
       try {
         await api.post('/sessions/sync', {
           session_id: activeSession.session_id || activeSession.s_id,
-          total_units: acStatus?.units_consumed || 0
+          total_units: acStatus?.units_consumed || 0,
+          active_duration_sec: telemetryData?.active_sec || 0
         });
       } catch (syncErr) {
         // If it throws a 404, it means the auto-sync hook already settled it perfectly.

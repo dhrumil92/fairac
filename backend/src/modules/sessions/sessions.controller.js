@@ -88,12 +88,13 @@ const cancelSession = async (req, res, next) => {
 const syncSession = async (req, res, next) => {
   try {
     if (handleValidationErrors(req, res)) return;
-    const { session_id, total_units } = req.body;
+    const { session_id, total_units, active_duration_sec } = req.body;
 
     const result = await sessionsService.syncSession({
       u_id: req.user.u_id,
       session_id,
-      total_units
+      total_units,
+      active_duration_sec
     });
 
     res.status(200).json({

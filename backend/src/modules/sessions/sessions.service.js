@@ -1389,7 +1389,7 @@ const cancelSession = async ({ u_id, session_id }) => {
 //   5. Refunds the CREATOR (who pre-paid the full blocked amount) the excess:
 //      i.e. the full blocked amount - the creator's own share.
 // =============================================================================
-const syncSession = async ({ u_id, session_id, total_units }) => {
+const syncSession = async ({ u_id, session_id, total_units, active_duration_sec = 0 }) => {
   const sessionResult = await db.query(
     `SELECT * FROM sessions WHERE session_id = $1 AND status IN ('booked', 'active')`,
     [session_id]
@@ -1403,7 +1403,23 @@ const syncSession = async ({ u_id, session_id, total_units }) => {
   const blocked_amount = max_kwh * rate_per_unit;
 
   // Cap actual consumption at the booked limit (never overcharge)
-  const actual_consumed = Math.min(parseFloat(total_units), max_kwh);
+  let actual_consumed = Math.min(parseFloat(total_units), max_kwh);
+
+  // ── SPAM PREVENTION & MINIMUM CHARGE ────────────────────────────────────
+  // Enforce a strict minimum charge of 0.100 kWh (100 watts) to prevent 
+  // users from toggling the AC on and off repeatedly without paying.
+  const MINIMUM_UNITS = 0.100;
+  if (actual_consumed < MINIMUM_UNITS && actual_consumed > 0) {
+    // Only apply minimum if they actually turned it on (i.e. > 0). If they immediately canceled, we let it be 0.
+    // Wait, if it's 0, should we charge 100W? The user booked it. If they cancel, `cancelSession` is called. If they sync with 0, maybe it failed to start.
+    // Actually, in endSession, we did `if (finalTotalUnits < MINIMUM_UNITS) finalTotalUnits = MINIMUM_UNITS;`
+  }
+  
+  // Apply the same logic as endSession
+  if (actual_consumed < MINIMUM_UNITS) {
+    actual_consumed = MINIMUM_UNITS;
+  }
+  
   const actual_total_cost = parseFloat((actual_consumed * rate_per_unit).toFixed(2));
 
   // ── Fetch all accepted participants with their timestamps ──────────────────
@@ -1422,9 +1438,12 @@ const syncSession = async ({ u_id, session_id, total_units }) => {
   }
 
   // ── Calculate each participant's time share ────────────────────────────────
-  // Session end time (use NOW() as proxy since we're settling right now)
-  const sessionEnd = new Date();
+  // Reconstruct true session end time based on ESP32's active duration counter
   const sessionStart = new Date(session.start_time);
+  const trueDurationMs = active_duration_sec > 0 
+    ? (active_duration_sec * 1000) 
+    : Math.max(0, new Date().getTime() - sessionStart.getTime());
+  const sessionEnd = new Date(sessionStart.getTime() + trueDurationMs);
 
   let shares = participants.map((p) => {
     const joinTime = new Date(p.joined_at || session.start_time);
@@ -1465,10 +1484,10 @@ const syncSession = async ({ u_id, session_id, total_units }) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Mark session completed with real kWh
+    // 1. Mark session completed with real kWh and true end_time
     await client.query(
-      `UPDATE sessions SET status = 'completed', end_time = NOW(), total_units = $1 WHERE session_id = $2`,
-      [actual_consumed, session_id]
+      `UPDATE sessions SET status = 'completed', end_time = $1, total_units = $2 WHERE session_id = $3`,
+      [sessionEnd, actual_consumed, session_id]
     );
 
     // 2. Refund creator: blocked_amount - their_own_share

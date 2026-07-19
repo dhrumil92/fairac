@@ -116,11 +116,11 @@ sequenceDiagram
     API->>DB: INSERT session (status='active')
     API->>DB: DEBIT wallet (block full cost)
     API->>DB: INSERT creator as participant (joined_at=NOW)
-    API-->>App: {session_id: 84, max_kwh: 1.5, max_duration_sec: 3600}
+    API-->>App: {session_id: 84, max_kwh: 4.5, max_duration_sec: 3600}
 
     Note over Student,DB: ── PHASE 2: HARDWARE START ───────────────────────────
 
-    App->>ESP32: BLE WRITE: {"cmd":"START",<br/>"max_kwh":1.5,<br/>"max_duration_sec":3600,<br/>"session_id":84}
+    App->>ESP32: BLE WRITE: {"cmd":"START",<br/>"max_kwh":4.5,<br/>"max_duration_sec":3600,<br/>"session_id":84}
     ESP32->>ESP32: Relay ON ⚡
     ESP32->>ESP32: Save state to NVS flash
     ESP32-->>App: BLE NOTIFY: {"status":"ACTIVE","power":1450,...}
@@ -143,7 +143,7 @@ sequenceDiagram
     Note over Student,DB: ── PHASE 5: BILLING SYNC ────────────────────────────
 
     App->>API: POST /sessions/sync<br/>{session_id:84,<br/>total_units:1.23,<br/>active_duration_sec:3592}
-    API->>API: Cap: actual = MIN(1.23, 1.5)<br/>Apply 100W minimum if needed<br/>Reconstruct timeline using active_duration_sec
+    API->>API: Cap: actual = MIN(1.23, 4.5)<br/>Apply 100W minimum if needed<br/>Reconstruct timeline using active_duration_sec
     API->>API: Calculate each person's share<br/>Apply grace periods
     API->>DB: BEGIN TRANSACTION
     API->>DB: UPDATE session (status='completed')
@@ -551,7 +551,7 @@ flowchart TD
 
     SWITCH -->|"budget\n₹100"| B1["max_kwh = 100 ÷ rate_per_unit\nmax_duration_sec = 0"]
     SWITCH -->|"unit\n2.5 kWh"| B2["max_kwh = 2.5\nmax_duration_sec = 0"]
-    SWITCH -->|"duration\n2 hours"| B3["max_kwh = 2h × 1.5kW = 3.0\nmax_duration_sec = 7200"]
+    SWITCH -->|"duration\n2 hours"| B3["max_kwh = 2h × 4.5kW = 9.0\nmax_duration_sec = 7200"]
     SWITCH -->|"unlimited"| B4["max_kwh = 0 (no limit)\nmax_duration_sec = 0"]
 
     B1 & B2 & B3 & B4 --> VALIDATE["Backend validates:\nblocked_amount ≤ wallet_balance"]

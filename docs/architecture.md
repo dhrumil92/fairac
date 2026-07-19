@@ -335,11 +335,13 @@ PATCH  /api/v1/admin/users/:id/toggle    — Enable/disable account
 12. Return full billing breakdown
 ```
 
+<!--
 > [!CAUTION]
 > **Known Bug:** `sessionEnd` is currently `new Date()` (server clock at sync time). If the phone syncs 24 hours after the AC turned off, participants' timelines are stretched to 24 hours, destroying the proportional ratio. **Fix: pass `active_duration_sec` from ESP32, calculate `sessionEnd = start_time + active_duration_sec`.**
 
 > [!WARNING]
 > **Known Gap:** `syncSession` currently does NOT apply the 5-minute grace periods or the 100W minimum charge. Both are only in `endSession` (the legacy WiFi path). **Fix: port both rules into `syncSession`.**
+-->
 
 ### 4.5 Billing Engine B — `endSession` (Legacy WiFi Flow)
 
@@ -357,7 +359,7 @@ Called by mobile app BEFORE sending the BLE START command.
 3. Validate wallet balance is sufficient:
    - budget type:   target_value (₹) ≤ balance
    - unit type:     (target_value × rate) ≤ balance
-   - duration type: (target_value hours × 1.5 kW × rate) ≤ balance
+   - duration type: (target_value hours × 4.5 kW × rate) ≤ balance
 4. Convert booking to max_kwh and max_duration_sec
 5. Block full session cost from creator's wallet upfront
 6. INSERT session record (status='active')
@@ -475,7 +477,7 @@ consumption_records -- written ONCE per (session, u_id), never updated
 | `unlimited` | NULL | 0 (no limit) | 0 (no limit) |
 | `budget` (₹) | ₹ amount | `target_value / rate_per_unit` | 0 |
 | `unit` (kWh) | kWh amount | `target_value` | 0 |
-| `duration` (hours) | Hours | `hours × 1.5 kW` | `hours × 3600` |
+| `duration` (hours) | Hours | `hours × 4.5 kW` | `hours × 3600` |
 
 ---
 
