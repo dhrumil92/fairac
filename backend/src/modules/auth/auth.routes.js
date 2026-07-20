@@ -23,10 +23,27 @@
 
 const express    = require('express');
 const { body }   = require('express-validator');
+const rateLimit  = require('express-rate-limit');
 const controller = require('./auth.controller');
 const { authenticate } = require('../../middleware/auth');
 
 const router = express.Router();
+
+// ─── Rate Limiting ─────────────────────────────────────────────────────────
+// DDoS and Brute-force protection for Auth routes.
+// Generous enough (50 requests / 15 min) to never block legitimate users
+// during a college demo (even sharing the same WiFi/IP), but strict enough
+// to stop a malicious script.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit each IP to 50 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many authentication attempts from this IP, please try again after 15 minutes.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ─── Validation Rule Sets ──────────────────────────────────────────────────
 // Declaring these as constants keeps the route definitions clean and readable.
@@ -113,11 +130,11 @@ const loginValidation = [
 // POST /api/v1/auth/register
 // Public route — no token needed
 // Validation runs before the controller
-router.post('/register', registerValidation, controller.register);
+router.post('/register', authLimiter, registerValidation, controller.register);
 
 // POST /api/v1/auth/login
 // Public route — no token needed (this is where you GET the token)
-router.post('/login', loginValidation, controller.login);
+router.post('/login', authLimiter, loginValidation, controller.login);
 
 // GET /api/v1/auth/me
 // Protected route — authenticate middleware verifies JWT first

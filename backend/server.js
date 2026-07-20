@@ -17,6 +17,16 @@
 
 require('dotenv').config(); // Load .env variables into process.env — MUST be first
 
+// ─── Environment Variable Validation ─────────────────────────────────────────
+const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'JWT_SECRET'];
+const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingVars.length > 0) {
+  console.error('❌ CRITICAL ERROR: Missing required environment variables.');
+  console.error(`   Please check your .env file. Missing: ${missingVars.join(', ')}`);
+  process.exit(1);
+}
+
 const app  = require('./src/app');
 
 // Initialize background workers

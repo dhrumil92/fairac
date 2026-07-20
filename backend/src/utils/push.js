@@ -17,7 +17,7 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
     // 1. Fetch user's push token from DB
     const { rows } = await db.query('SELECT push_token FROM users WHERE u_id = $1', [userId]);
     if (rows.length === 0 || !rows[0].push_token) {
-      console.log(`No push token found for user ${userId}`);
+      // User has not registered for push notifications
       return false;
     }
 
@@ -25,7 +25,6 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
 
     // 2. Check that all your push tokens appear to be valid Expo push tokens
     if (!Expo.isExpoPushToken(pushToken)) {
-      console.error(`Push token ${pushToken} is not a valid Expo push token`);
       return false;
     }
 
