@@ -98,6 +98,15 @@ node database/schema.sql
 npm run dev
 ```
 
+### 2.5 Cloud Deployment (Docker)
+For deploying to a cloud VM (e.g., Oracle Cloud, AWS), FairAC includes a fully configured Docker setup that automatically provisions both the Node.js backend and a secure PostgreSQL container.
+```bash
+cd backend
+# Edit the .env file with your production secrets
+docker-compose up -d
+```
+*Note: The `docker-compose.yml` automatically locks down the database port so it is not exposed to the public internet.*
+
 ### 3. Mobile App Setup
 ```bash
 cd mobileApp/application
