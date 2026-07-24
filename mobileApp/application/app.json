@@ -11,13 +11,6 @@
     },
     "_comment": "We set usesCleartextTraffic: true inside android so it allows HTTP traffic to our 34.83.244.112 Google Cloud Server. Without it, Android blocks us!",
     "android": {
-      "usesCleartextTraffic": true,
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
       "permissions": [
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
@@ -41,6 +34,14 @@
           ],
           "bluetoothAlwaysPermission": "Allow FairAC to connect to your room's smart AC controller.",
           "bluetoothPeripheralPermission": "Allow FairAC to connect to your room's smart AC controller."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],

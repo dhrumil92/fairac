@@ -659,7 +659,7 @@ const DashboardPage = () => {
                   <p>Start a session when you turn on the AC. Your roommates will be auto-notified.</p>
                   <div style={{ display: 'flex', gap: '16px', marginTop: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {(() => {
-                      const isStartDisabled = user?.is_active === false || roomInfo?.room_active === false || roomInfo?.hostel_active === false || deviceStatus?.status === 'offline';
+                      const isStartDisabled = user?.is_active === false || roomInfo?.room_active === false || roomInfo?.hostel_active === false || deviceStatus?.status !== 'online';
                       return (
                         <>
                           <button
@@ -670,7 +670,7 @@ const DashboardPage = () => {
                             onMouseOut={(e) => { if (!isStartDisabled) e.currentTarget.style.opacity = '1'; }}
                           >
                             <span className="material-symbols-outlined">play_arrow</span>
-                            {deviceStatus?.status === 'offline' ? 'AC is Offline' : 'Quick Start (1.5 hr)'}
+                            {deviceStatus?.status !== 'online' ? (deviceStatus ? 'AC is Offline' : 'Connecting...') : 'Quick Start (1.5 hr)'}
                           </button>
                           {isStartDisabled ? (
                             <div className="btn-gradient" style={{ margin: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, cursor: 'not-allowed', filter: 'grayscale(100%)' }}>
