@@ -20,10 +20,17 @@ const LoginPage = () => {
   const [error, setError]             = useState('');
   const canvasRef                     = useRef(null);
 
-  // Redirect if already logged in
+  // Redirect if already logged in, or block if student
   useEffect(() => {
     if (user) {
-      navigate(user.role === 'admin' ? '/admin/dashboard' : '/dashboard');
+      if (user.role !== 'student') {
+        navigate('/admin/dashboard');
+      } else {
+        // If a student somehow has an old token saved, log them out immediately
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+      }
     }
   }, [user, navigate]);
 
@@ -130,14 +137,15 @@ const LoginPage = () => {
       const response = await api.post('/auth/login', { identifier, password });
       const { token, user } = response.data.data;
 
-      login(token, user);
-
-      // Route based on role
-      if (user.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
+      // Restrict web app to Admins only
+      if (user.role === 'student') {
+        setError('Access Denied: Students must use the FairAC Mobile App.');
+        setIsLoading(false);
+        return;
       }
+
+      login(token, user);
+      navigate('/admin/dashboard');
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';
       setError(msg);

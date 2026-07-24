@@ -107,7 +107,7 @@ const WalletScreen = () => {
 
         if (txRes?.data?.data?.transactions) {
           const txs = txRes.data.data.transactions;
-          tRecharged = txs.filter(t => t.type !== 'consumption').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+          tRecharged = txs.filter(t => t.type === 'recharge').reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
         }
 
         setWalletStats({

@@ -59,6 +59,10 @@ async function registerCategories() {
   ]);
 }
 
+// Execute immediately in global scope for killed state support
+registerCategories().catch(console.error);
+
+
 // ─── Handle a button tap from notification (background OR foreground) ─────────
 export async function handleNotificationAction(response, navigationRef) {
   const actionId = response.actionIdentifier;
@@ -124,8 +128,7 @@ export default function usePushNotifications(navigationRef) {
   const responseListener = useRef();
 
   useEffect(() => {
-    // 1. Register notification categories (Accept/Reject buttons)
-    registerCategories().catch(console.error);
+    // 1. (Moved to global scope above)
 
     // 2. Register device push token with backend
     if (user && token) {

@@ -513,11 +513,6 @@ const inviteParticipant = async ({ u_id, session_id, invitee_id }) => {
     );
   }
 
-  await db.query(
-    `INSERT INTO session_participants (session_id, u_id, status) VALUES ($1, $2, 'invited')`,
-    [session_id, invitee_id]
-  );
-
   // Notify the invitee with Accept/Reject action buttons
   const inviterData = await db.query('SELECT name FROM users WHERE u_id = $1', [u_id]);
   const inviterName = inviterData.rows[0]?.name || 'Your roommate';
