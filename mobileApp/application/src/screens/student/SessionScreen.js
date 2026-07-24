@@ -400,6 +400,35 @@ const SessionScreen = () => {
     }
   };
 
+  const handleAcceptInvite = async () => {
+    setActionLoading(true);
+    try {
+      const sId = activeSession.session_id || activeSession.s_id;
+      await api.post('/sessions/participants/accept', { session_id: sId });
+      Alert.alert('✅ Joined!', 'You have joined the AC session.');
+      await fetchStatus();
+      await fetchMe();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to accept invite.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectInvite = async () => {
+    setActionLoading(true);
+    try {
+      const sId = activeSession.session_id || activeSession.s_id;
+      await api.post('/sessions/participants/reject', { session_id: sId });
+      Alert.alert('❌ Rejected', 'You have declined the session invite.');
+      await fetchStatus();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to reject invite.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ─── Leave Session (for participants) ──────────────────────────────────────
   const handleLeaveSession = () => {
     Alert.alert(
@@ -523,6 +552,9 @@ const SessionScreen = () => {
   // Has MY own leave request pending (waiting for roommate approval)
   const myLeaveIsPending = myParticipant?.leave_status === 'pending';
 
+  // Has MY own invite pending (I was invited to join)
+  const myInviteIsPending = myParticipant?.status === 'invited';
+
   // If everyone else has requested to leave, I shouldn't be able to request leave too (prevent UI deadlock).
   // I should approve them and/or end the session.
   const allOthersPending = pendingLeaveRequests.length > 0 && pendingLeaveRequests.length === (acceptedParticipants.length - 1);
@@ -611,6 +643,37 @@ const SessionScreen = () => {
       {activeSession && (
         <>
           {/* ── PRIORITY CARDS: Actionable items shown first ── */}
+
+          {/* My pending session invitation */}
+          {myInviteIsPending && (
+            <View style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+              borderWidth: 1.5,
+              borderColor: 'rgba(59, 130, 246, 0.5)',
+              borderRadius: 14,
+              padding: 16,
+              marginBottom: 12,
+            }}>
+              <Text style={{ color: '#3B82F6', fontWeight: '700', fontSize: 15, marginBottom: 4 }}>⚡ Session Invitation</Text>
+              <Text style={{ color: colors.textPrimary, fontSize: 13, marginBottom: 14 }}>
+                You have been invited to join the active AC session in this room.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.btnAction, { flex: 1, backgroundColor: '#10B981', borderColor: 'transparent' }]}
+                  onPress={handleAcceptInvite}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>✅ Accept</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnAction, { flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+                  onPress={handleRejectInvite}
+                >
+                  <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 14 }}>❌ Reject</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Pending leave requests from roommates */}
           {pendingLeaveRequests.map(leaver => (
