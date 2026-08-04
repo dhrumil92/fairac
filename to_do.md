@@ -51,6 +51,8 @@ if the actual used is more than 100w (let 580w) then both will be showing same (
 
 *add ir sensor to turn off the ac
 
+*github profile, linkedin profile, portfolio
+
 how many students (immediate seniors) got placed
 what is minimum, maximum, and average package
 
