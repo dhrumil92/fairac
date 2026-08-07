@@ -13,7 +13,7 @@ This is your exact shopping list. It includes every single microchip, passive co
 *   **1× WT32-ETH01:** The main ESP32 brain with Ethernet. (This comes as a module, not a bare chip).
 *   **1× DS3231 RTC Module:** The highly accurate Real-Time Clock with a battery holder. (Buy the module, not the bare chip, because soldering a coin-cell battery holder is annoying).
 *   **1× LM2596 Buck Converter Module:** To step down the 12V power supply to 3.3V and 5V.
-*   **2× MCP23017 (DIP-28):** The 16-channel I2C Port Expanders.
+*   **3× MCP23017 (DIP-28):** The 16-channel I2C Port Expanders. (3 chips = 48 total output pins).
 *   **1× MAX485 (DIP-8):** The RS485 communication chip. (Buy the bare chip, not the module).
 *   **8× L293D (DIP-16):** Dual H-Bridge Motor Drivers. *(Note: We use the L293D here because it comes in a convenient DIP package, requires no heatsink, and easily handles the tiny 12V pulse required by latching relays. One L293D drives two relays).*
 *   **2× ULN2803A (DIP-18):** Darlington Transistor Arrays to amplify power for the IR LEDs.
@@ -24,7 +24,7 @@ This is your exact shopping list. It includes every single microchip, passive co
 ## 2. IC Sockets & Headers
 *You will solder these to your green PCB permanently. You will plug the chips from Section 1 into these.*
 
-*   **2× 28-Pin Narrow DIP IC Sockets** (For the MCP23017s).
+*   **3× 28-Pin Narrow DIP IC Sockets** (For the MCP23017s).
 *   **8× 16-Pin DIP IC Sockets** (For the L293D H-Bridges).
 *   **2× 18-Pin DIP IC Sockets** (For the ULN2803As).
 *   **1× 8-Pin DIP IC Socket** (For the MAX485).
@@ -38,8 +38,8 @@ This is your exact shopping list. It includes every single microchip, passive co
 
 **For the I2C Bus & MCP23017s:**
 *   **2× 4.7kΩ Resistors:** Pull-up resistors for the I2C SDA and SCL data lines.
-*   **2× 10kΩ Resistors:** To tie the RESET pins of the two MCP23017s to 3.3V.
-*   **2× 0.1µF (100nF) Ceramic Capacitors:** Decoupling capacitors placed next to the VDD pins of the two MCP23017s for power stability.
+*   **3× 10kΩ Resistors:** To tie the RESET pins of the three MCP23017s to 3.3V.
+*   **3× 0.1µF (100nF) Ceramic Capacitors:** Decoupling capacitors placed next to the VDD pins of the three MCP23017s for power stability.
 
 **For the MAX485 (RS485 Protection):**
 *   **1× 120Ω Resistor:** A termination resistor placed across the A and B lines of the MAX485 to prevent signal echoes.
