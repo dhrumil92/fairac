@@ -1,5 +1,6 @@
 # FairAC: Decentralized IoT AC Billing & Management Ecosystem
-
+**🚀 Live at: [Admin/ Super Admin](http://136.66.184.105/login)
+[Mobile App](mobileApp/base.apk)**
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat&logo=node.js&logoColor=white)
