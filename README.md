@@ -1,6 +1,5 @@
-# FairAC: Decentralized IoT AC Billing & Management Ecosystem
-**🚀 Live at: [Admin/ Super Admin](http://136.66.184.105/login)
-[Mobile App](mobileApp/base.apk)**
+# FairAC: Decentralized IoT AC Billing & Management Ecosystem 
+
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=flat&logo=node.js&logoColor=white)
@@ -9,6 +8,10 @@
 ![BLE](https://img.shields.io/badge/Bluetooth_LE-0082FC?style=flat&logo=bluetooth&logoColor=white)
 
 **FairAC** is a full-stack, hardware-integrated ecosystem designed to solve the problem of unfair electricity billing in shared university accommodations. By combining a custom IoT edge device (ESP32) with a cross-platform React Native application and a transaction-safe Node.js/PostgreSQL backend, FairAC enables highly precise, pay-as-you-go split billing for high-power air conditioning units.
+
+**<B>🚀 Live at: </b>[Admin/ Super_Admin](http://136.66.184.105/login)
+<BR>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+[Mobile App](https://github.com/dhrumil92/fairac/releases/download/v1.0.0/base.apk)**
 
 ---
 
